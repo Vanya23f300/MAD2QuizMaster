@@ -27,6 +27,7 @@ def create_app():
     app.register_blueprint(user.bp)
 
     with app.app_context():
+        from . import models 
         db.create_all()
         from .utils import create_admin_if_not_exists
         create_admin_if_not_exists()
