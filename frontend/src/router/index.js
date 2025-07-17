@@ -39,6 +39,16 @@ const routes = [
     name: 'UserScores',
     component: () => import('../views/user/ScoresView.vue')
   },
+  {
+    path: '/user/summary',
+    name: 'UserSummary',
+    component: () => import('../views/user/SummaryView.vue')
+  },
+  {
+    path: '/user/profile',
+    name: 'UserProfile',
+    component: () => import('../views/user/ProfileView.vue')
+  },
   // Admin CRUD Management Routes
   {
     path: '/admin/subjects',

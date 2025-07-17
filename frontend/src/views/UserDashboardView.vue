@@ -63,6 +63,28 @@
           </div>
         </div>
 
+        <!-- Quick Actions Section -->
+        <div class="row mb-4">
+          <div class="col-12">
+            <DashboardCard title="Quick Actions" icon="bi bi-lightning">
+              <div class="d-flex flex-wrap gap-3">
+                <router-link to="/user/scores" class="btn btn-outline-light">
+                  <i class="bi bi-list-check me-2"></i>View All Scores
+                </router-link>
+                <router-link to="/user/summary" class="btn btn-outline-primary">
+                  <i class="bi bi-graph-up me-2"></i>Performance Summary
+                </router-link>
+                <button class="btn btn-outline-success" @click="handleStartRandomQuiz">
+                  <i class="bi bi-shuffle me-2"></i>Random Quiz
+                </button>
+                <button class="btn btn-outline-info" @click="handleViewProfile">
+                  <i class="bi bi-person me-2"></i>My Profile
+                </button>
+              </div>
+            </DashboardCard>
+          </div>
+        </div>
+
         <!-- Upcoming Quizzes Section -->
         <div class="row mb-5">
           <div class="col-12">
@@ -378,6 +400,15 @@ export default {
       console.log('Viewing subject details:', subjectId)
       // Navigate to subject details view
       this.$router.push(`/subject/${subjectId}`)
+    },
+    handleStartRandomQuiz() {
+      // Pick a random quiz from available quizzes
+      const randomQuiz = this.availableQuizzes[Math.floor(Math.random() * this.availableQuizzes.length)]
+      this.handleStartQuiz(randomQuiz.id)
+    },
+    handleViewProfile() {
+      // Navigate to profile page
+      this.$router.push('/user/profile')
     }
   }
 }
