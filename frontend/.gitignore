@@ -21,3 +21,7 @@ pnpm-debug.log*
 *.njsproj
 *.sln
 *.sw?
+.cursorrules
+.scratchpad.md
+scratchpad.md
+/docs
