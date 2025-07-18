@@ -3,6 +3,10 @@ import { createRouter, createWebHistory } from 'vue-router'
 
 const routes = [
   {
+    path: '/',
+    redirect: '/login'
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('../views/LoginView.vue')
@@ -12,44 +16,12 @@ const routes = [
     name: 'Register',
     component: () => import('../views/RegisterView.vue')
   },
+  // Admin Routes
   {
     path: '/admin',
     name: 'AdminDashboard',
     component: () => import('../views/AdminDashboardView.vue')
   },
-  {
-    path: '/user',
-    name: 'UserDashboard',
-    component: () => import('../views/UserDashboardView.vue')
-  },
-  // User Quiz Routes
-  {
-    path: '/quiz/:id/take',
-    name: 'QuizTaking',
-    component: () => import('../views/user/QuizTakingView.vue')
-  },
-  {
-    path: '/quiz/:id/result',
-    name: 'QuizResult',
-    component: () => import('../views/user/QuizResultView.vue')
-  },
-  // User Analytics Routes
-  {
-    path: '/user/scores',
-    name: 'UserScores',
-    component: () => import('../views/user/ScoresView.vue')
-  },
-  {
-    path: '/user/summary',
-    name: 'UserSummary',
-    component: () => import('../views/user/SummaryView.vue')
-  },
-  {
-    path: '/user/profile',
-    name: 'UserProfile',
-    component: () => import('../views/user/ProfileView.vue')
-  },
-  // Admin CRUD Management Routes
   {
     path: '/admin/subjects',
     name: 'AdminSubjects',
@@ -61,14 +33,40 @@ const routes = [
     component: () => import('../views/admin/ChaptersView.vue')
   },
   {
+    path: '/admin/quizzes',
+    name: 'AdminQuizzes',
+    component: () => import('../views/admin/QuizzesView.vue')
+  },
+  {
     path: '/admin/questions',
     name: 'AdminQuestions',
     component: () => import('../views/admin/QuestionsView.vue')
   },
+  // User Routes
   {
-    path: '/admin/quizzes',
-    name: 'AdminQuizzes',
-    component: () => import('../views/admin/QuizzesView.vue')
+    path: '/user',
+    name: 'UserDashboard',
+    component: () => import('../views/UserDashboardView.vue')
+  },
+  {
+    path: '/quiz/:id/take',
+    name: 'QuizTaking',
+    component: () => import('../views/user/QuizTakingView.vue')
+  },
+  {
+    path: '/quiz/:id/result',
+    name: 'QuizResult',
+    component: () => import('../views/user/QuizResultView.vue')
+  },
+  {
+    path: '/user/scores',
+    name: 'UserScores',
+    component: () => import('../views/user/ScoresView.vue')
+  },
+  {
+    path: '/user/summary',
+    name: 'UserSummary',
+    component: () => import('../views/user/SummaryView.vue')
   }
 ]
 

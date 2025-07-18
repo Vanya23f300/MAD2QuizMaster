@@ -2,7 +2,16 @@
   <div class="questions-view">
     <!-- Header Section -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h1 class="h3 text-light mb-0">Questions Management</h1>
+      <div class="d-flex align-items-center gap-3">
+        <button 
+          class="btn btn-outline-light d-flex align-items-center gap-2"
+          @click="goBack"
+        >
+          <i class="bi bi-arrow-left"></i>
+          Back
+        </button>
+        <h1 class="h3 text-light mb-0">Questions Management</h1>
+      </div>
       <button 
         class="btn btn-primary d-flex align-items-center gap-2"
         @click="showAddModal"
@@ -415,8 +424,7 @@ export default {
       { key: 'type', label: 'Type', badge: true },
       { key: 'chapterTitle', label: 'Chapter' },
       { key: 'difficulty', label: 'Difficulty', badge: true },
-      { key: 'points', label: 'Points' },
-      { key: 'actions', label: 'Actions' }
+      { key: 'points', label: 'Points' }
     ]
 
     // Methods
@@ -514,13 +522,17 @@ export default {
 
     onMounted(loadData)
 
+    const goBack = () => {
+      window.history.back()
+    }
+
     return {
       questions, chapters, showModal, showPreviewModal, showDeleteModal,
       editingQuestion, deleteItem, searchTerm, selectedChapter, selectedType,
       selectedDifficulty, formData, previewData, modalTitle, filteredQuestions,
       tableColumns, showAddModal, handleEdit, handleDelete, handlePreview,
       handleTypeChange, addOption, removeOption, showPreview, handleSubmit,
-      handleCancel, confirmDelete
+      handleCancel, confirmDelete, goBack
     }
   }
 }

@@ -2,7 +2,16 @@
   <div class="subjects-view">
     <!-- Header Section -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h1 class="h3 text-light mb-0">Subjects Management</h1>
+      <div class="d-flex align-items-center gap-3">
+        <button 
+          class="btn btn-outline-light d-flex align-items-center gap-2"
+          @click="goBack"
+        >
+          <i class="bi bi-arrow-left"></i>
+          Back
+        </button>
+        <h1 class="h3 text-light mb-0">Subjects Management</h1>
+      </div>
       <button 
         class="btn btn-primary d-flex align-items-center gap-2"
         @click="showAddModal"
@@ -128,8 +137,7 @@ export default {
       { key: 'status', label: 'Status', badge: true },
       { key: 'chapters', label: 'Chapters' },
       { key: 'questions', label: 'Questions' },
-      { key: 'created', label: 'Created' },
-      { key: 'actions', label: 'Actions' }
+      { key: 'created', label: 'Created' }
     ]
 
     const loadSubjects = () => {
@@ -208,6 +216,10 @@ export default {
 
     onMounted(loadSubjects)
 
+    const goBack = () => {
+      window.history.back()
+    }
+
     return {
       subjects,
       showModal,
@@ -224,7 +236,8 @@ export default {
       handleDelete,
       handleSubmit,
       handleCancel,
-      confirmDelete
+      confirmDelete,
+      goBack
     }
   }
 }

@@ -2,7 +2,16 @@
   <div class="chapters-view">
     <!-- Header Section -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h1 class="h3 text-light mb-0">Chapters Management</h1>
+      <div class="d-flex align-items-center gap-3">
+        <button 
+          class="btn btn-outline-light d-flex align-items-center gap-2"
+          @click="goBack"
+        >
+          <i class="bi bi-arrow-left"></i>
+          Back
+        </button>
+        <h1 class="h3 text-light mb-0">Chapters Management</h1>
+      </div>
       <button 
         class="btn btn-primary d-flex align-items-center gap-2"
         @click="showAddModal"
@@ -163,8 +172,7 @@ export default {
       { key: 'title', label: 'Chapter Title' },
       { key: 'subjectName', label: 'Subject' },
       { key: 'questionsCount', label: 'Questions' },
-      { key: 'created', label: 'Created' },
-      { key: 'actions', label: 'Actions' }
+      { key: 'created', label: 'Created' }
     ]
 
     const loadData = () => {
@@ -244,6 +252,12 @@ export default {
 
     onMounted(loadData)
 
+    const goBack = () => {
+      // Navigate back to admin dashboard
+      // You can use router.push('/admin') or router.go(-1)
+      window.history.back()
+    }
+
     return {
       chapters,
       subjects,
@@ -262,7 +276,8 @@ export default {
       handleDelete,
       handleSubmit,
       handleCancel,
-      confirmDelete
+      confirmDelete,
+      goBack
     }
   }
 }

@@ -2,7 +2,16 @@
   <div class="quizzes-view">
     <!-- Header Section -->
     <div class="d-flex justify-content-between align-items-center mb-4">
-      <h1 class="h3 text-light mb-0">Quizzes Management</h1>
+      <div class="d-flex align-items-center gap-3">
+        <button 
+          class="btn btn-outline-light d-flex align-items-center gap-2"
+          @click="goBack"
+        >
+          <i class="bi bi-arrow-left"></i>
+          Back
+        </button>
+        <h1 class="h3 text-light mb-0">Quizzes Management</h1>
+      </div>
       <button 
         class="btn btn-primary d-flex align-items-center gap-2"
         @click="showAddModal"
@@ -214,8 +223,7 @@ export default {
       { key: 'chapterTitle', label: 'Chapter' },
       { key: 'questionCount', label: 'Questions' },
       { key: 'totalPoints', label: 'Points' },
-      { key: 'status', label: 'Status', badge: true },
-      { key: 'actions', label: 'Actions' }
+      { key: 'status', label: 'Status', badge: true }
     ]
     
     const loadData = () => {
@@ -310,13 +318,17 @@ export default {
     
     onMounted(loadData)
 
+    const goBack = () => {
+      window.history.back()
+    }
+
     return {
       quizzes, chapters, availableQuestions, showModal, showPreviewModal,
       showDeleteModal, editingQuiz, deleteItem, searchTerm, selectedStatus,
       formData, previewData, modalTitle, totalPoints, filteredQuizzes, tableColumns,
       loadData, resetForm, showAddModal, handleEdit, handleDelete, handlePreview,
       handleSubmit, handleCancel, confirmDelete, handleChapterChange,
-      isQuestionSelected, toggleQuestion, removeQuestion, showPreview
+      isQuestionSelected, toggleQuestion, removeQuestion, showPreview, goBack
     }
   }
 }

@@ -6,16 +6,16 @@
         <div class="col-md-6">
           <div class="search-container">
             <div class="input-group">
-              <span class="input-group-text glass">
+              <span class="input-group-text search-icon-container">
                 <i class="bi bi-search"></i>
               </span>
-                             <input
-                 type="text"
-                 class="form-control glass"
-                 placeholder="Search..."
-                 v-model="localSearchQuery"
-                 @input="handleSearch"
-               />
+              <input
+                type="text"
+                class="form-control"
+                placeholder="Search..."
+                v-model="localSearchQuery"
+                @input="handleSearch"
+              />
             </div>
           </div>
         </div>
@@ -371,6 +371,20 @@ export default {
 
 .search-container .input-group {
   max-width: 300px;
+}
+
+.search-icon-container {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-right: none !important;
+  border-radius: 12px 0 0 12px !important;
+  backdrop-filter: blur(10px);
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.search-container .form-control {
+  border-left: none !important;
+  border-radius: 0 12px 12px 0 !important;
 }
 
 .table {

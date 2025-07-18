@@ -1,12 +1,12 @@
 <template>
   <div class="search-container position-relative">
     <div class="input-group">
-      <span class="input-group-text bg-transparent border-0">
-        <i class="bi bi-search text-secondary"></i>
+      <span class="input-group-text search-icon-glass">
+        <i class="bi bi-search"></i>
       </span>
       <input
         type="text"
-        class="form-control bg-dark text-light border-0"
+        class="form-control search-input-glass"
         :placeholder="placeholder"
         :value="modelValue"
         @input="$emit('update:modelValue', $event.target.value)"
@@ -65,11 +65,36 @@ export default {
   position: relative;
 }
 
+.search-icon-glass {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-right: none !important;
+  border-radius: 12px 0 0 12px !important;
+  backdrop-filter: blur(10px);
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.search-input-glass {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-left: none !important;
+  border-radius: 0 12px 12px 0 !important;
+  color: #ffffff !important;
+  backdrop-filter: blur(10px);
+}
+
+.search-input-glass:focus {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(74, 85, 104, 0.6) !important;
+  box-shadow: 0 0 0 0.25rem rgba(74, 85, 104, 0.25) !important;
+  color: #ffffff !important;
+}
+
+.search-input-glass::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
 .form-control {
-  background: rgba(35, 39, 43, 0.8) !important;
-  color: #F8F9FA !important;
-  border: 1.5px solid #343A40 !important;
-  border-radius: 0.75rem !important;
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 

@@ -44,18 +44,16 @@ export default {
           { path: '/admin', label: 'Dashboard', icon: 'bi bi-house' },
           { path: '/admin/subjects', label: 'Subjects', icon: 'bi bi-book' },
           { path: '/admin/chapters', label: 'Chapters', icon: 'bi bi-collection' },
-          { path: '/admin/questions', label: 'Questions', icon: 'bi bi-question-circle' },
           { path: '/admin/quizzes', label: 'Quizzes', icon: 'bi bi-file-text' },
-          { path: '/admin/summary', label: 'Summary', icon: 'bi bi-graph-up' },
-          { path: '/logout', label: 'Logout', icon: 'bi bi-box-arrow-right' }
+          { path: '/admin/questions', label: 'Questions', icon: 'bi bi-question-circle' },
+          { path: '/login', label: 'Logout', icon: 'bi bi-box-arrow-right' }
         ]
       } else {
         return [
           { path: '/user', label: 'Dashboard', icon: 'bi bi-house' },
-          { path: '/user/quizzes', label: 'Quizzes', icon: 'bi bi-file-text' },
-          { path: '/user/scores', label: 'Scores', icon: 'bi bi-trophy' },
-          { path: '/user/summary', label: 'Summary', icon: 'bi bi-graph-up' },
-          { path: '/logout', label: 'Logout', icon: 'bi bi-box-arrow-right' }
+          { path: '/user/scores', label: 'My Scores', icon: 'bi bi-trophy' },
+          { path: '/user/summary', label: 'Summary Charts', icon: 'bi bi-graph-up' },
+          { path: '/login', label: 'Logout', icon: 'bi bi-box-arrow-right' }
         ]
       }
     }
@@ -70,50 +68,54 @@ export default {
 
 <style scoped>
 .sidebar {
+  min-height: 100vh;
+  padding: 1.5rem;
   background: rgba(35, 39, 43, 0.6);
   border-radius: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 4px 32px 0 rgba(0,0,0,0.25);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  padding: 1.5rem;
-  width: 280px;
   transition: width 0.3s ease;
-  height: calc(100vh - 2rem);
-  position: sticky;
-  top: 1rem;
+  width: 250px;
 }
 
 .sidebar-collapsed {
   width: 80px;
 }
 
+.sidebar-header {
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
 .sidebar-title {
-  font-weight: 600;
   font-size: 1.1rem;
+  font-weight: 600;
 }
 
 .nav-link {
-  color: #ADB5BD;
+  color: #adb5bd;
   padding: 0.75rem 1rem;
   border-radius: 0.5rem;
-  transition: all 0.2s;
+  transition: all 0.3s ease;
   text-decoration: none;
+  margin-bottom: 0.5rem;
 }
 
 .nav-link:hover {
-  color: #F8F9FA;
-  background: rgba(13, 110, 253, 0.1);
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8f9fa;
+  transform: translateX(5px);
 }
 
 .nav-link.active {
-  color: #0D6EFD;
-  background: rgba(13, 110, 253, 0.15);
-  font-weight: 600;
+  background: rgba(13, 110, 253, 0.2);
+  color: #0d6efd;
+  border-left: 3px solid #0d6efd;
 }
 
 .nav-icon {
-  font-size: 1.1rem;
   width: 20px;
   text-align: center;
 }
@@ -122,16 +124,11 @@ export default {
   font-weight: 500;
 }
 
-@media (max-width: 768px) {
-  .sidebar {
-    width: 100%;
-    height: auto;
-    position: relative;
-    margin-bottom: 1rem;
-  }
-  
-  .sidebar-collapsed {
-    width: 100%;
-  }
+.sidebar-collapsed .nav-text {
+  display: none;
+}
+
+.sidebar-collapsed .sidebar-title {
+  display: none;
 }
 </style> 

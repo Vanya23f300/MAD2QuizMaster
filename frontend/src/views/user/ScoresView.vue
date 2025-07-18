@@ -3,9 +3,18 @@
     <!-- Page Header -->
     <div class="page-header glass-card mb-4">
       <div class="d-flex justify-content-between align-items-center">
-        <div>
-          <h2 class="h3 text-light mb-1">My Quiz Scores</h2>
-          <p class="text-muted mb-0">Track your quiz performance and progress over time</p>
+        <div class="d-flex align-items-center gap-3">
+          <button 
+            class="btn btn-outline-light d-flex align-items-center gap-2"
+            @click="goBack"
+          >
+            <i class="bi bi-arrow-left"></i>
+            Back
+          </button>
+          <div>
+            <h2 class="h3 text-light mb-1">My Quiz Scores</h2>
+            <p class="text-muted mb-0">Track your quiz performance and progress over time</p>
+          </div>
         </div>
         <div class="header-stats">
           <div class="stat-item">
@@ -455,6 +464,10 @@ export default {
       router.push(`/quiz/${quizId}/take`)
     }
 
+    const goBack = () => {
+      router.go(-1)
+    }
+
     // Lifecycle
     onMounted(() => {
       loadScores()
@@ -481,7 +494,8 @@ export default {
       formatFullDate,
       clearFilters,
       viewScoreDetails,
-      retakeQuiz
+      retakeQuiz,
+      goBack
     }
   }
 }

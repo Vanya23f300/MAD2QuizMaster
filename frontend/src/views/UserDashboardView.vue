@@ -8,166 +8,98 @@
       
       <!-- Main Content -->
       <div class="col-lg-9 col-md-8">
-        <!-- Header -->
-        <div class="dashboard-header glass mb-5">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h1 class="text-light mb-2">Welcome back, {{ user.name }}!</h1>
-              <p class="text-secondary mb-0 fs-5">{{ getGreeting() }} - Ready to continue your learning journey?</p>
+        <div class="container-fluid p-4">
+          <!-- Header -->
+          <div class="mb-4">
+            <div class="d-flex align-items-center gap-3 mb-2">
+              <button 
+                class="btn btn-outline-light d-flex align-items-center gap-2"
+                @click="goBack"
+              >
+                <i class="bi bi-arrow-left"></i>
+                Back
+              </button>
+              <h1 class="text-light mb-0">User Dashboard</h1>
             </div>
-            <SearchBar v-model="searchQuery" placeholder="Search quizzes, subjects..." />
+            <p class="text-secondary">Take quizzes and track your progress</p>
           </div>
-        </div>
 
-        <!-- Statistics Row -->
-        <div class="row mb-5">
-          <div class="col-xl-3 col-lg-6 mb-4">
-            <StatsWidget
-              :value="stats.totalQuizzesTaken"
-              label="Quizzes Completed"
-              icon="bi bi-check-circle"
-              color="success"
-              trend="+3"
-              trend-direction="up"
-            />
-          </div>
-          <div class="col-xl-3 col-lg-6 mb-4">
-            <StatsWidget
-              :value="stats.averageScore"
-              label="Average Score"
-              icon="bi bi-graph-up"
-              color="primary"
-              trend="+5%"
-              trend-direction="up"
-            />
-          </div>
-          <div class="col-xl-3 col-lg-6 mb-4">
-            <StatsWidget
-              :value="stats.currentStreak"
-              label="Day Streak"
-              icon="bi bi-fire"
-              color="warning"
-              trend="+2"
-              trend-direction="up"
-            />
-          </div>
-          <div class="col-xl-3 col-lg-6 mb-4">
-            <StatsWidget
-              :value="stats.bestSubject"
-              label="Best Subject"
-              icon="bi bi-trophy"
-              color="info"
-              trend="Web Dev"
-              trend-direction="up"
-            />
-          </div>
-        </div>
-
-        <!-- Quick Actions Section -->
-        <div class="row mb-4">
-          <div class="col-12">
-            <DashboardCard title="Quick Actions" icon="bi bi-lightning">
-              <div class="d-flex flex-wrap gap-3">
-                <router-link to="/user/scores" class="btn btn-outline-light">
-                  <i class="bi bi-list-check me-2"></i>View All Scores
-                </router-link>
-                <router-link to="/user/summary" class="btn btn-outline-primary">
-                  <i class="bi bi-graph-up me-2"></i>Performance Summary
-                </router-link>
-                <button class="btn btn-outline-success" @click="handleStartRandomQuiz">
-                  <i class="bi bi-shuffle me-2"></i>Random Quiz
-                </button>
-                <button class="btn btn-outline-info" @click="handleViewProfile">
-                  <i class="bi bi-person me-2"></i>My Profile
-                </button>
+          <!-- Basic Stats -->
+          <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+              <div class="card glass text-center p-3">
+                <h5 class="text-light">Quizzes Taken</h5>
+                <h3 class="text-primary">{{ stats.totalQuizzes }}</h3>
               </div>
-            </DashboardCard>
+            </div>
+            <div class="col-md-4 mb-3">
+              <div class="card glass text-center p-3">
+                <h5 class="text-light">Average Score</h5>
+                <h3 class="text-success">{{ stats.averageScore }}%</h3>
+              </div>
+            </div>
+            <div class="col-md-4 mb-3">
+              <div class="card glass text-center p-3">
+                <h5 class="text-light">Best Score</h5>
+                <h3 class="text-warning">{{ stats.bestScore }}%</h3>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <!-- Upcoming Quizzes Section -->
-        <div class="row mb-5">
-          <div class="col-12">
-            <DashboardCard title="Upcoming Quizzes" icon="bi bi-calendar-event">
+          <!-- Available Quizzes -->
+          <div class="card glass mb-4">
+            <div class="card-header bg-transparent">
+              <h5 class="text-light mb-0">Available Quizzes</h5>
+            </div>
+            <div class="card-body">
               <div class="row">
-                <div 
-                  v-for="quiz in upcomingQuizzes" 
-                  :key="quiz.id" 
-                  class="col-lg-4 col-md-6 mb-4"
-                >
-                  <UpcomingQuizCard 
-                    :quiz="quiz"
-                    @start-quiz="handleStartQuiz"
-                    @view-details="handleViewDetails"
-                  />
+                <div class="col-md-6 col-lg-4 mb-3" v-for="quiz in availableQuizzes" :key="quiz.id">
+                  <div class="card glass">
+                    <div class="card-body">
+                      <h6 class="text-light">{{ quiz.title }}</h6>
+                      <p class="text-muted small">{{ quiz.subject }} • {{ quiz.duration }} mins</p>
+                      <p class="text-secondary small">{{ quiz.questions }} questions</p>
+                      <button class="btn btn-primary btn-sm w-100" @click="startQuiz(quiz.id)">
+                        Start Quiz
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </DashboardCard>
-          </div>
-        </div>
-
-        <!-- Recent Performance & Subject Progress -->
-        <div class="row">
-          <!-- Recent Performance -->
-          <div class="col-lg-6 mb-4">
-            <DashboardCard title="Recent Performance" icon="bi bi-clock-history">
-              <div class="row">
-                <div 
-                  v-for="score in recentScores" 
-                  :key="score.id" 
-                  class="col-12 mb-3"
-                >
-                  <RecentScoreCard 
-                    :score="score"
-                    @view-details="handleViewScoreDetails"
-                    @retake-quiz="handleRetakeQuiz"
-                  />
-                </div>
-              </div>
-            </DashboardCard>
+            </div>
           </div>
 
-          <!-- Subject Progress -->
-          <div class="col-lg-6 mb-4">
-            <DashboardCard title="Subject Progress" icon="bi bi-bar-chart">
-              <div class="row">
-                <div 
-                  v-for="subject in subjectProgress" 
-                  :key="subject.id" 
-                  class="col-12 mb-3"
-                >
-                  <SubjectProgress 
-                    :subject="subject"
-                    @start-quiz="handleStartSubjectQuiz"
-                    @review-subject="handleReviewSubject"
-                    @view-details="handleViewSubjectDetails"
-                  />
-                </div>
+          <!-- Recent Scores -->
+          <div class="card glass">
+            <div class="card-header bg-transparent">
+              <h5 class="text-light mb-0">Recent Quiz Results</h5>
+            </div>
+            <div class="card-body">
+              <div class="table-responsive">
+                <table class="table table-dark">
+                  <thead>
+                    <tr>
+                      <th>Quiz</th>
+                      <th>Subject</th>
+                      <th>Date</th>
+                      <th>Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="score in recentScores" :key="score.id">
+                      <td>{{ score.quizName }}</td>
+                      <td>{{ score.subject }}</td>
+                      <td>{{ formatDate(score.date) }}</td>
+                      <td>
+                        <span class="badge" :class="getScoreBadgeClass(score.percentage)">
+                          {{ score.percentage }}%
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-            </DashboardCard>
-          </div>
-        </div>
-
-        <!-- Available Quizzes Section -->
-        <div class="row mb-5">
-          <div class="col-12">
-            <DashboardCard title="Available Quizzes" icon="bi bi-play-circle">
-              <div class="row">
-                <div 
-                  v-for="quiz in availableQuizzes" 
-                  :key="quiz.id" 
-                  class="col-lg-4 col-md-6 mb-4"
-                >
-                  <QuizCard 
-                    :quiz="quiz"
-                    @start-quiz="handleStartQuiz"
-                    @continue-quiz="handleContinueQuiz"
-                    @view-result="handleViewResult"
-                    @view-details="handleViewDetails"
-                  />
-                </div>
-              </div>
-            </DashboardCard>
+            </div>
           </div>
         </div>
       </div>
@@ -177,238 +109,89 @@
 
 <script>
 import BaseSidebar from '../components/BaseSidebar.vue'
-import DashboardCard from '../components/DashboardCard.vue'
-import SearchBar from '../components/SearchBar.vue'
-import StatsWidget from '../components/StatsWidget.vue'
-import QuizCard from '../components/QuizCard.vue'
-import UpcomingQuizCard from '../components/UpcomingQuizCard.vue'
-import RecentScoreCard from '../components/RecentScoreCard.vue'
-import SubjectProgress from '../components/SubjectProgress.vue'
 
 export default {
   name: 'UserDashboardView',
   components: {
-    BaseSidebar,
-    DashboardCard,
-    SearchBar,
-    StatsWidget,
-    QuizCard,
-    UpcomingQuizCard,
-    RecentScoreCard,
-    SubjectProgress
+    BaseSidebar
   },
   data() {
     return {
-      searchQuery: '',
-      user: {
-        name: 'John Doe',
-        role: 'user'
-      },
       stats: {
-        totalQuizzesTaken: 12,
-        averageScore: 85,
-        currentStreak: 7,
-        bestSubject: 'Web Dev'
+        totalQuizzes: 12,
+        averageScore: 78,
+        bestScore: 95
       },
-      upcomingQuizzes: [
+      availableQuizzes: [
         {
           id: 1,
-          title: 'JavaScript Advanced',
+          title: 'Vue.js Fundamentals',
           subject: 'Web Development',
-          date: '2024-01-15T10:00:00',
-          duration: '45 min',
-          questionCount: 20,
-          difficulty: 'Hard',
-          status: 'upcoming'
+          duration: 30,
+          questions: 15
         },
         {
           id: 2,
-          title: 'Python Fundamentals',
+          title: 'JavaScript ES6',
           subject: 'Programming',
-          date: '2024-01-18T14:00:00',
-          duration: '30 min',
-          questionCount: 15,
-          difficulty: 'Medium',
-          status: 'upcoming'
+          duration: 25,
+          questions: 12
         },
         {
           id: 3,
-          title: 'Database Design',
-          subject: 'Computer Science',
-          date: '2024-01-20T09:00:00',
-          duration: '60 min',
-          questionCount: 25,
-          difficulty: 'Hard',
-          status: 'upcoming'
+          title: 'HTML & CSS',
+          subject: 'Web Development',
+          duration: 20,
+          questions: 10
+        },
+        {
+          id: 4,
+          title: 'Database Basics',
+          subject: 'Database',
+          duration: 40,
+          questions: 20
         }
       ],
       recentScores: [
         {
           id: 1,
-          quizId: 1,
-          quizTitle: 'JavaScript Basics',
+          quizName: 'Vue.js Basics',
           subject: 'Web Development',
-          percentage: 85,
-          correctAnswers: 17,
-          incorrectAnswers: 3,
-          totalQuestions: 20,
-          timeTaken: '25 min',
-          completedAt: '2024-01-10T14:30:00',
-          feedback: 'Great performance! You showed strong understanding of JavaScript fundamentals. Consider practicing more on async functions.'
+          date: '2024-01-15',
+          percentage: 85
         },
         {
           id: 2,
-          quizId: 2,
-          quizTitle: 'HTML Fundamentals',
-          subject: 'Web Development',
-          percentage: 92,
-          correctAnswers: 23,
-          incorrectAnswers: 2,
-          totalQuestions: 25,
-          timeTaken: '20 min',
-          completedAt: '2024-01-08T11:15:00',
-          feedback: 'Excellent work! Your HTML knowledge is solid. Keep up the great work!'
-        },
-        {
-          id: 3,
-          quizId: 3,
-          quizTitle: 'CSS Styling',
-          subject: 'Web Development',
-          percentage: 78,
-          correctAnswers: 15,
-          incorrectAnswers: 4,
-          totalQuestions: 19,
-          timeTaken: '35 min',
-          completedAt: '2024-01-05T16:45:00',
-          feedback: 'Good effort! Focus on CSS Grid and Flexbox concepts for improvement.'
-        }
-      ],
-      subjectProgress: [
-        {
-          id: 1,
-          name: 'Web Development',
-          icon: 'bi bi-code-slash',
-          progress: 75,
-          completedQuizzes: 6,
-          remainingQuizzes: 2,
-          averageScore: 82,
-          bestScore: 95,
-          color: '#0D6EFD'
-        },
-        {
-          id: 2,
-          name: 'Programming',
-          icon: 'bi bi-cpu',
-          progress: 45,
-          completedQuizzes: 3,
-          remainingQuizzes: 4,
-          averageScore: 78,
-          bestScore: 88,
-          color: '#198754'
-        },
-        {
-          id: 3,
-          name: 'Computer Science',
-          icon: 'bi bi-laptop',
-          progress: 20,
-          completedQuizzes: 1,
-          remainingQuizzes: 5,
-          averageScore: 70,
-          bestScore: 70,
-          color: '#FFC107'
-        }
-      ],
-      availableQuizzes: [
-        {
-          id: 4,
-          title: 'React Basics',
-          subject: 'Web Development',
-          duration: '40 min',
-          questionCount: 18,
-          difficulty: 'Medium',
-          status: 'available'
-        },
-        {
-          id: 5,
-          title: 'Vue.js Fundamentals',
-          subject: 'Web Development',
-          duration: '35 min',
-          questionCount: 16,
-          difficulty: 'Medium',
-          status: 'available'
-        },
-        {
-          id: 6,
-          title: 'Python OOP',
+          quizName: 'JavaScript ES6',
           subject: 'Programming',
-          duration: '50 min',
-          questionCount: 22,
-          difficulty: 'Hard',
-          status: 'available'
+          date: '2024-01-14',
+          percentage: 92
+        },
+        {
+          id: 3,
+          quizName: 'HTML & CSS',
+          subject: 'Web Development',
+          date: '2024-01-12',
+          percentage: 78
         }
       ]
     }
   },
   methods: {
-    getGreeting() {
-      const hour = new Date().getHours()
-      if (hour < 12) return 'Good morning'
-      if (hour < 18) return 'Good afternoon'
-      return 'Good evening'
-    },
-    handleStartQuiz(quizId) {
-      console.log('Starting quiz:', quizId)
-      // Navigate to quiz taking interface
+    startQuiz(quizId) {
       this.$router.push(`/quiz/${quizId}/take`)
     },
-    handleContinueQuiz(quizId) {
-      console.log('Continuing quiz:', quizId)
-      // Navigate to quiz taking interface with saved progress
-      this.$router.push(`/quiz/${quizId}?continue=true`)
+    formatDate(dateString) {
+      return new Date(dateString).toLocaleDateString()
     },
-    handleViewResult(quizId) {
-      console.log('Viewing result for quiz:', quizId)
-      // Navigate to quiz result view
-      this.$router.push(`/result/${quizId}`)
+    getScoreBadgeClass(percentage) {
+      if (percentage >= 90) return 'bg-success'
+      if (percentage >= 75) return 'bg-primary'
+      if (percentage >= 60) return 'bg-warning'
+      return 'bg-danger'
     },
-    handleViewDetails(quizId) {
-      console.log('Viewing details for quiz:', quizId)
-      // Navigate to quiz details view
-      this.$router.push(`/quiz/${quizId}/details`)
-    },
-    handleViewScoreDetails(scoreId) {
-      console.log('Viewing score details:', scoreId)
-      // Navigate to detailed score view
-      this.$router.push(`/score/${scoreId}`)
-    },
-    handleRetakeQuiz(quizId) {
-      console.log('Retaking quiz:', quizId)
-      // Navigate to quiz taking interface
-      this.$router.push(`/quiz/${quizId}?retake=true`)
-    },
-    handleStartSubjectQuiz(subjectId) {
-      console.log('Starting quiz for subject:', subjectId)
-      // Navigate to quiz taking interface for specific subject
-      this.$router.push(`/subject/${subjectId}/quiz`)
-    },
-    handleReviewSubject(subjectId) {
-      console.log('Reviewing subject:', subjectId)
-      // Navigate to subject review interface
-      this.$router.push(`/subject/${subjectId}/review`)
-    },
-    handleViewSubjectDetails(subjectId) {
-      console.log('Viewing subject details:', subjectId)
-      // Navigate to subject details view
-      this.$router.push(`/subject/${subjectId}`)
-    },
-    handleStartRandomQuiz() {
-      // Pick a random quiz from available quizzes
-      const randomQuiz = this.availableQuizzes[Math.floor(Math.random() * this.availableQuizzes.length)]
-      this.handleStartQuiz(randomQuiz.id)
-    },
-    handleViewProfile() {
-      // Navigate to profile page
-      this.$router.push('/user/profile')
+    goBack() {
+      this.$router.go(-1)
     }
   }
 }
@@ -416,27 +199,29 @@ export default {
 
 <style scoped>
 .user-dashboard {
-  padding: 2rem;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #181A1B 0%, #23272B 100%);
+  padding-top: 2rem;
 }
 
-.dashboard-header {
-  background: rgba(35, 43, 51, 0.8);
-  border-radius: 1.5rem;
+.card.glass {
+  background: rgba(35, 39, 43, 0.6);
+  border-radius: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  padding: 2rem;
+  box-shadow: 0 4px 32px 0 rgba(0,0,0,0.25);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-  .user-dashboard {
-    padding: 1rem;
-  }
-  
-  .dashboard-header {
-    padding: 1.5rem;
-  }
+.card-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.table-dark {
+  background: transparent;
+}
+
+.table-dark td, .table-dark th {
+  border-color: rgba(255, 255, 255, 0.1);
 }
 </style> 

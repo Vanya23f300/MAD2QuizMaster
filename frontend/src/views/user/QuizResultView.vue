@@ -2,6 +2,16 @@
   <div class="quiz-result-view">
     <!-- Results Header -->
     <div class="result-header glass-card mb-4">
+      <div class="d-flex justify-content-between align-items-start mb-3">
+        <button 
+          class="btn btn-outline-light d-flex align-items-center gap-2"
+          @click="goBack"
+        >
+          <i class="bi bi-arrow-left"></i>
+          Back
+        </button>
+        <div></div>
+      </div>
       <div class="text-center">
         <div class="result-icon mb-3">
           <i v-if="result.passed" class="bi bi-check-circle-fill text-success" style="font-size: 4rem;"></i>
@@ -428,6 +438,10 @@ export default {
       router.push('/user')
     }
 
+    const goBack = () => {
+      router.go(-1)
+    }
+
     const getUserAnswer = (questionId) => {
       return userAnswers.value[questionId]
     }
@@ -474,7 +488,8 @@ export default {
       isQuestionCorrect,
       retakeQuiz,
       goToDashboard,
-      shareResult
+      shareResult,
+      goBack
     }
   }
 }

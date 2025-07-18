@@ -19,7 +19,7 @@
             <input
               :id="'register-password'"
               :type="showPassword ? 'text' : 'password'"
-              class="form-control bg-dark text-light border-secondary glass"
+              class="form-control password-input"
               :class="{ 'is-invalid': errors.password }"
               :placeholder="'Enter your password'"
               :required="true"
@@ -27,7 +27,7 @@
               @input="password = $event.target.value"
               autocomplete="new-password"
             />
-            <button class="btn btn-outline-secondary" type="button" tabindex="-1" @click="showPassword = !showPassword">
+            <button class="btn password-toggle-btn" type="button" tabindex="-1" @click="showPassword = !showPassword">
               <span v-if="showPassword" class="bi bi-eye-slash"></span>
               <span v-else class="bi bi-eye"></span>
             </button>
@@ -68,13 +68,18 @@
           </select>
         </div>
         <FormError :error="errors.general" />
-        <BaseButton :loading="loading" type="submit" class="w-100 mt-2 mb-3">
-          Register
+        <BaseButton 
+          :loading="loading" 
+          type="submit" 
+          class="w-100 mt-2 mb-3 btn-register"
+        >
+          <i class="bi bi-person-plus me-2"></i>
+          Create Account
         </BaseButton>
       </form>
       <div class="text-center mt-2">
         <span class="text-secondary">Already have an account?</span>
-        <router-link to="/login" class="link-primary ms-1">Login</router-link>
+        <router-link to="/login" class="login-link ms-1">Sign In</router-link>
       </div>
     </div>
   </div>
@@ -145,5 +150,119 @@ export default {
   box-shadow: 0 4px 32px 0 rgba(0,0,0,0.25);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+}
+
+.password-input {
+  border-radius: 12px 0 0 12px !important;
+  border-right: none !important;
+}
+
+.password-toggle-btn {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-left: none !important;
+  border-radius: 0 12px 12px 0 !important;
+  color: rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.password-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.password-toggle-btn:focus {
+  box-shadow: none !important;
+  border-color: rgba(74, 85, 104, 0.6) !important;
+}
+
+.btn-register {
+  font-size: 1rem;
+  padding: 14px 24px;
+  font-weight: 600;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-link {
+  color: #cbd5e0;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.login-link::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 1px;
+  background: #4a5568;
+  transition: width 0.3s ease;
+}
+
+.login-link:hover {
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.login-link:hover::after {
+  width: 100%;
+}
+
+.register-view {
+  min-height: 100vh;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.register-card {
+  max-width: 400px;
+  width: 100%;
+  padding: 2rem 1.8rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.register-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(135deg, #4a5568, #2d3748);
+  border-radius: 16px 16px 0 0;
+}
+
+.register-header {
+  position: relative;
+}
+
+.register-icon {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #4a5568, #2d3748);
+  border-radius: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  box-shadow: 0 6px 20px rgba(74, 85, 104, 0.3);
+}
+
+.register-icon i {
+  font-size: 1.8rem;
+  color: white;
+}
+
+.register-form {
+  position: relative;
 }
 </style> 

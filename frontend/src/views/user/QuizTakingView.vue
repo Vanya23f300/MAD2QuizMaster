@@ -14,10 +14,19 @@
     <!-- Quiz Header -->
     <div class="quiz-header glass-card mb-4">
       <div class="d-flex justify-content-between align-items-center">
-        <div class="quiz-info">
-          <h2 class="h4 text-light mb-1">{{ quiz.title }}</h2>
-          <p class="text-muted mb-0">{{ quiz.description }}</p>
-          <small class="text-info">{{ quiz.chapterTitle }} • {{ quiz.questions?.length || 0 }} Questions • {{ quiz.totalPoints }} Points</small>
+        <div class="d-flex align-items-center gap-3">
+          <button 
+            class="btn btn-outline-light d-flex align-items-center gap-2"
+            @click="goBack"
+          >
+            <i class="bi bi-arrow-left"></i>
+            Back
+          </button>
+          <div class="quiz-info">
+            <h2 class="h4 text-light mb-1">{{ quiz.title }}</h2>
+            <p class="text-muted mb-0">{{ quiz.description }}</p>
+            <small class="text-info">{{ quiz.chapterTitle }} • {{ quiz.questions?.length || 0 }} Questions • {{ quiz.totalPoints }} Points</small>
+          </div>
         </div>
         <div class="quiz-timer">
           <QuizTimer 
@@ -454,6 +463,10 @@ export default {
       timeRemaining.value = seconds
     }
 
+    const goBack = () => {
+      router.back()
+    }
+
     // Lifecycle
     onMounted(() => {
       loadQuiz()
@@ -495,7 +508,8 @@ export default {
       showSubmitConfirm,
       submitQuiz,
       handleTimeUp,
-      handleTimeUpdate
+      handleTimeUpdate,
+      goBack
     }
   }
 }

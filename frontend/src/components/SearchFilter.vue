@@ -21,12 +21,12 @@
       <div class="filter-group">
         <label class="form-label small text-muted">Search</label>
         <div class="input-group">
-          <span class="input-group-text glass">
+          <span class="input-group-text search-icon-container">
             <i class="bi bi-search"></i>
           </span>
           <input
             type="text"
-            class="form-control glass"
+            class="form-control"
             placeholder="Search..."
             v-model="localSearchQuery"
             @input="handleSearchChange"
@@ -360,6 +360,27 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+
+.filter-group input, .filter-group select {
+  background: rgba(35, 39, 43, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f8f9fa;
+  border-radius: 0.5rem;
+}
+
+.search-icon-container {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-right: none !important;
+  border-radius: 12px 0 0 12px !important;
+  backdrop-filter: blur(10px);
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.filter-group .input-group .form-control {
+  border-left: none !important;
+  border-radius: 0 12px 12px 0 !important;
 }
 
 .multi-select-container {
