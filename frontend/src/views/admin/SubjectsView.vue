@@ -1,243 +1,308 @@
 <template>
   <div class="subjects-view">
     <!-- Header Section -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <div class="d-flex align-items-center gap-3">
+    <div class="page-header glass mb-4">
+      <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center">
         <button 
-          class="btn btn-outline-light d-flex align-items-center gap-2"
-          @click="goBack"
+            class="btn btn-outline-light me-3"
+            @click="goBackToAdmin"
+            title="Back to Admin Dashboard"
         >
-          <i class="bi bi-arrow-left"></i>
+            <i class="bi bi-arrow-left me-2"></i>
           Back
         </button>
-        <h1 class="h3 text-light mb-0">Subjects Management</h1>
+          <div>
+            <h1 class="text-light mb-2">
+              <i class="bi bi-book me-3"></i>
+              Subjects Management
+            </h1>
+            <p class="text-light mb-0">Create and manage subjects for your quiz platform</p>
+          </div>
+        </div>
+        
       </div>
-      <button 
-        class="btn btn-primary d-flex align-items-center gap-2"
-        @click="showAddModal"
-      >
-        <i class="bi bi-plus-circle"></i>
-        Add Subject
-      </button>
     </div>
 
-    <!-- Control Bar -->
-    <div class="control-bar glass-card mb-4">
+    <!-- Create Subject Card -->
+    <div class="create-subject-card glass mb-4">
+      <div class="card-header">
+        <h3 class="text-light mb-0">
+          <i class="bi bi-plus-circle me-2"></i>
+          Create New Subject
+        </h3>
+      </div>
+      
+      <div class="card-body">
+        <form @submit.prevent="createSubject">
+          <div class="row">
+            <div class="col-md-6">
+              <div class="form-group mb-3">
+                <label class="form-label text-light">
+                  <i class="bi bi-tag me-2"></i>Subject Name *
+                </label>
       <input 
-        type="search" 
-        class="form-control search-input" 
-        placeholder="Search subjects by name or description..."
-        v-model="searchTerm"
+                  type="text"
+                  class="form-control glass-input"
+                  v-model="newSubject.name"
+                  placeholder="Enter subject name (e.g., Biology, Mathematics)"
+                  required
       />
     </div>
-
-    <!-- Subjects Table -->
-    <div class="glass-card">
-      <DataTable
-        :data="filteredSubjects"
-        :columns="tableColumns"
-        @edit="handleEdit"
-        @delete="handleDelete"
-      />
+            </div>
+            
+            <div class="col-md-6">
+              <div class="form-group mb-3">
+                <label class="form-label text-light">
+                  <i class="bi bi-file-text me-2"></i>Description (Optional)
+                </label>
+                <textarea
+                  class="form-control glass-input"
+                  v-model="newSubject.description"
+                  rows="3"
+                  placeholder="Enter subject description..."
+                ></textarea>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Error/Success Messages -->
+          <div v-if="error" class="alert alert-danger glass-alert mb-3">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            {{ error }}
+          </div>
+          
+          <div v-if="success" class="alert alert-success glass-alert mb-3">
+            <i class="bi bi-check-circle me-2"></i>
+            {{ success }}
+          </div>
+          
+          <div class="form-actions">
+            <button
+              type="submit"
+              class="btn btn-primary btn-lg"
+              :disabled="loading || !newSubject.name.trim()"
+            >
+              <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
+              <i v-else class="bi bi-plus-lg me-2"></i>
+              {{ loading ? 'Creating...' : 'Create Subject' }}
+            </button>
+            
+            <button
+              type="button"
+              class="btn btn-outline-light ms-3"
+              @click="resetForm"
+            >
+              <i class="bi bi-arrow-clockwise me-2"></i>
+              Reset
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
 
-    <!-- Add/Edit Modal -->
-    <FormModal
-      v-model="showModal"
-      :title="modalTitle"
-      @submit="handleSubmit"
-      @cancel="handleCancel"
-    >
-      <form @submit.prevent="handleSubmit">
-        <div class="mb-3">
-          <label for="subjectName" class="form-label text-light">Subject Name *</label>
-          <input
-            id="subjectName"
-            v-model="formData.name"
-            type="text"
-            class="form-control"
-            placeholder="e.g., Computer Science"
-            required
-          >
+    <!-- Existing Subjects Card -->
+    <div class="subjects-list-card glass">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h3 class="text-light mb-0">
+          <i class="bi bi-list-ul me-2"></i>
+          Existing Subjects
+        </h3>
+        
+        <button
+          class="btn btn-outline-light btn-sm"
+          @click="fetchSubjects"
+          :disabled="loading"
+        >
+          <i class="bi bi-arrow-clockwise me-2"></i>
+          Refresh
+        </button>
+      </div>
+      
+      <div class="card-body">
+        <!-- Loading State -->
+        <div v-if="loading && subjects.length === 0" class="text-center py-5">
+          <div class="spinner-border text-primary mb-3"></div>
+          <p class="text-muted">Loading subjects...</p>
         </div>
-        <div class="mb-3">
-          <label for="subjectDescription" class="form-label text-light">Description</label>
-          <textarea
-            id="subjectDescription"
-            v-model="formData.description"
-            class="form-control"
-            rows="3"
-            placeholder="e.g., Programming, algorithms, and software development"
-          ></textarea>
+        
+        <!-- Empty State -->
+        <div v-else-if="!loading && subjects.length === 0" class="empty-state text-center py-5">
+          <i class="bi bi-book display-1 text-muted mb-3"></i>
+          <h4 class="text-light">No Subjects Created Yet</h4>
+          <p class="text-muted">Create your first subject to get started with quiz management.</p>
         </div>
-        <div class="mb-3">
-          <label class="form-label text-light">Status</label>
-          <select v-model="formData.status" class="form-select">
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+        
+        <!-- Subjects Table -->
+        <div v-else class="table-responsive">
+          <table class="table table-dark table-glass">
+            <thead>
+              <tr>
+                <th><i class="bi bi-hash me-2"></i>ID</th>
+                <th><i class="bi bi-book me-2"></i>Name</th>
+                <th><i class="bi bi-file-text me-2"></i>Description</th>
+                <th><i class="bi bi-calendar me-2"></i>Created At</th>
+                <th><i class="bi bi-toggle-on me-2"></i>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="subject in subjects" :key="subject.id" class="table-row-glass">
+                <td>
+                  <span class="badge bg-primary">{{ subject.id }}</span>
+                </td>
+                <td>
+                  <strong class="text-light">{{ subject.name }}</strong>
+                </td>
+                <td>
+                  <span class="text-muted">
+                    {{ subject.description || 'No description' }}
+                  </span>
+                </td>
+                <td>
+                  <small class="text-muted">
+                    {{ formatDate(subject.created_at) }}
+                  </small>
+                </td>
+                <td>
+                  <span
+                    class="badge"
+                    :class="subject.is_active ? 'bg-success' : 'bg-secondary'"
+                  >
+                    <i :class="subject.is_active ? 'bi bi-check-circle' : 'bi bi-x-circle'" class="me-1"></i>
+                    {{ subject.is_active ? 'Active' : 'Inactive' }}
+                  </span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
-      </form>
-    </FormModal>
-
-    <!-- Delete Confirmation -->
-    <DeleteConfirm
-      v-model="showDeleteModal"
-      :item-name="deleteItem?.name"
-      item-type="subject"
-      @confirm="confirmDelete"
-    />
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
-import DataTable from '@/components/DataTable.vue'
-import FormModal from '@/components/FormModal.vue'
-import DeleteConfirm from '@/components/DeleteConfirm.vue'
+import SubjectService from '@/services/subject-service'
 
 export default {
   name: 'SubjectsView',
-  components: {
-    DataTable,
-    FormModal,
-    DeleteConfirm
-  },
-  setup() {
-    const subjects = ref([])
-    const showModal = ref(false)
-    const showDeleteModal = ref(false)
-    const editingSubject = ref(null)
-    const deleteItem = ref(null)
-    const searchTerm = ref('')
-
-    const formData = ref({
-      name: '',
-      description: '',
-      status: 'active'
-    })
-
-    const modalTitle = computed(() => 
-      editingSubject.value ? 'Edit Subject' : 'Add New Subject'
-    )
-
-    const filteredSubjects = computed(() => {
-      if (!searchTerm.value) {
-        return subjects.value
-      }
-      return subjects.value.filter(subject =>
-        subject.name.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-        subject.description.toLowerCase().includes(searchTerm.value.toLowerCase())
-      )
-    })
-
-    const tableColumns = [
-      { key: 'name', label: 'Subject Name' },
-      { key: 'description', label: 'Description', truncate: true },
-      { key: 'status', label: 'Status', badge: true },
-      { key: 'chapters', label: 'Chapters' },
-      { key: 'questions', label: 'Questions' },
-      { key: 'created', label: 'Created' }
-    ]
-
-    const loadSubjects = () => {
-      subjects.value = [
-        { id: 1, name: 'Biology', description: 'Study of living organisms and their interactions', status: 'inactive', chapters: 6, questions: 80, created: '10/02/2024' },
-        { id: 2, name: 'Chemistry', description: 'Chemical reactions, elements, and compounds', status: 'active', chapters: 10, questions: 95, created: '01/02/2024' },
-        { id: 3, name: 'Computer Science', description: 'Programming, algorithms, and software development', status: 'active', chapters: 15, questions: 200, created: '15/02/2024' },
-        { id: 4, name: 'Mathematics', description: 'Advanced mathematics including algebra, calculus, and geometry', status: 'active', chapters: 12, questions: 150, created: '15/01/2024' },
-        { id: 5, name: 'Physics', description: 'Fundamental physics concepts and principles', status: 'active', chapters: 8, questions: 120, created: '20/01/2024' }
-      ]
-    }
-
-    const resetForm = () => {
-      formData.value = {
-        name: '',
-        description: '',
-        status: 'active'
-      }
-    }
-
-    const showAddModal = () => {
-      resetForm()
-      editingSubject.value = null
-      showModal.value = true
-    }
-
-    const handleEdit = (subject) => {
-      editingSubject.value = subject
-      formData.value = {
-        name: subject.name,
-        description: subject.description,
-        status: subject.status
-      }
-      showModal.value = true
-    }
-
-    const handleDelete = (subject) => {
-      deleteItem.value = subject
-      showDeleteModal.value = true
-    }
-
-    const handleSubmit = () => {
-      if (editingSubject.value) {
-        const index = subjects.value.findIndex(s => s.id === editingSubject.value.id)
-        if (index !== -1) {
-          subjects.value[index] = {
-            ...editingSubject.value,
-            ...formData.value
-          }
-        }
-      } else {
-        subjects.value.push({
-          id: Date.now(),
-          ...formData.value,
-          chapters: 0,
-          questions: 0,
-          created: new Date().toLocaleDateString()
-        })
-      }
-      showModal.value = false
-      resetForm()
-    }
-
-    const handleCancel = () => {
-      showModal.value = false
-      resetForm()
-    }
-
-    const confirmDelete = () => {
-      if (deleteItem.value) {
-        subjects.value = subjects.value.filter(s => s.id !== deleteItem.value.id)
-        deleteItem.value = null
-      }
-      showDeleteModal.value = false
-    }
-
-    onMounted(loadSubjects)
-
-    const goBack = () => {
-      window.history.back()
-    }
-
+  data() {
     return {
-      subjects,
-      showModal,
-      showDeleteModal,
-      editingSubject,
-      deleteItem,
-      searchTerm,
-      formData,
-      modalTitle,
-      filteredSubjects,
-      tableColumns,
-      showAddModal,
-      handleEdit,
-      handleDelete,
-      handleSubmit,
-      handleCancel,
-      confirmDelete,
-      goBack
+      newSubject: {
+        name: '',
+        description: ''
+      },
+      subjects: [],
+      loading: false,
+      error: '',
+      success: ''
+    }
+  },
+  computed: {
+    isTokenPresent() {
+      return !!localStorage.getItem('token')
+    },
+    isAdmin() {
+      return localStorage.getItem('isAdmin') === 'true'
+    },
+    isAuthenticated() {
+      return localStorage.getItem('isAuthenticated') === 'true'
+    }
+  },
+  async mounted() {
+    await this.fetchSubjects()
+  },
+  methods: {
+    async createSubject() {
+      this.loading = true
+      this.error = ''
+      this.success = ''
+
+      try {
+        console.log('🚀 Creating subject:', this.newSubject)
+        
+        // Validate input
+        if (!this.newSubject.name.trim()) {
+          this.error = 'Subject name is required'
+          this.loading = false
+          return
+        }
+        
+        const result = await SubjectService.createSubject(this.newSubject)
+        
+        console.log('✅ Subject Creation Result:', result)
+        
+        if (result.success) {
+          this.success = result.message
+          this.resetForm()
+          await this.fetchSubjects()
+        } else {
+          console.error('❌ Subject Creation Error:', result.message)
+          this.error = result.message
+        }
+      } catch (error) {
+        console.error('❌ Unexpected error creating subject:', error)
+        
+        // More detailed error logging
+        if (error.response) {
+          console.error('Response Error:', {
+            status: error.response.status,
+            data: error.response.data,
+            headers: error.response.headers
+          })
+        }
+        
+        this.error = error.response?.data?.message || 'Failed to create subject. Please try again.'
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async fetchSubjects() {
+      this.loading = true
+      this.error = ''
+
+      try {
+        console.log('Fetching subjects...')
+        
+        const result = await SubjectService.getAllSubjects()
+        
+        if (result.success) {
+          this.subjects = result.data
+          console.log('Subjects fetched:', this.subjects)
+        } else {
+          this.error = result.message
+        }
+      } catch (error) {
+        console.error('Failed to fetch subjects:', error)
+        this.error = 'Failed to retrieve subjects'
+      } finally {
+        this.loading = false
+      }
+    },
+
+    resetForm() {
+      this.newSubject = {
+        name: '',
+        description: ''
+      }
+      this.error = ''
+      this.success = ''
+    },
+
+    formatDate(dateString) {
+      if (!dateString) return 'N/A'
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    },
+
+    goBackToAdmin() {
+      this.$router.push('/admin')
     }
   }
 }
@@ -249,39 +314,146 @@ export default {
   min-height: 100vh;
 }
 
-.glass-card {
-  background: rgba(35, 39, 43, 0.6);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+.page-header {
+  padding: 2rem;
   border-radius: 1rem;
+}
+
+.debug-info {
+  border-radius: 0.5rem;
+  font-family: 'Courier New', monospace;
+}
+
+.create-subject-card,
+.subjects-list-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.card-header {
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   padding: 1.5rem;
 }
 
-.control-bar {
+.card-body {
+  padding: 2rem;
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 0.75rem !important;
+  color: #ffffff !important;
+  padding: 0.75rem 1rem !important;
+  transition: all 0.3s ease !important;
+}
+
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(108, 117, 125, 0.5) !important;
+  box-shadow: 0 0 0 0.25rem rgba(108, 117, 125, 0.25) !important;
+  color: #ffffff !important;
+}
+
+.glass-input::placeholder {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.glass-alert {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 0.75rem !important;
+  backdrop-filter: blur(10px);
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.table-glass {
+  background: rgba(255, 255, 255, 0.03) !important;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.table-glass th {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  color: #ffffff !important;
+  font-weight: 600;
   padding: 1rem;
 }
 
-.search-input {
+.table-row-glass {
+  background: rgba(255, 255, 255, 0.02) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+  transition: all 0.3s ease;
+}
+
+.table-row-glass:hover {
   background: rgba(255, 255, 255, 0.05) !important;
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  color: #fff !important;
+  transform: translateX(2px);
+}
+
+.table-row-glass td {
+  padding: 1rem;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+  vertical-align: middle;
+}
+
+.empty-state {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 1rem;
+  margin: 2rem 0;
+}
+
+.btn {
+  border-radius: 0.75rem !important;
+  padding: 0.75rem 1.5rem !important;
+  font-weight: 600 !important;
+  transition: all 0.3s ease !important;
+}
+
+.btn:hover {
+  transform: translateY(-1px) !important;
+}
+
+.badge {
+  font-size: 0.8rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 0.5rem;
 }
 
-.search-input::placeholder {
-  color: #adb5bd;
+.spinner-border-sm {
+  width: 1rem;
+  height: 1rem;
 }
 
-.form-control, .form-select {
-  background: rgba(35, 39, 43, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #f8f9fa;
-}
-
-.form-control:focus, .form-select:focus {
-  background: rgba(35, 39, 43, 1);
-  border-color: rgba(13, 110, 253, 0.5);
-  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-  color: #f8f9fa;
+@media (max-width: 768px) {
+  .subjects-view {
+    padding: 1rem;
+  }
+  
+  .page-header {
+    padding: 1.5rem;
+  }
+  
+  .card-body {
+    padding: 1.5rem;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .form-actions .btn {
+    margin-bottom: 0.5rem;
+  }
 }
 </style> 

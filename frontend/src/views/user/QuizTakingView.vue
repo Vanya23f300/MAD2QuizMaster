@@ -1,385 +1,344 @@
 <template>
-  <div class="quiz-taking-view">
-    <!-- Loading State -->
-    <div v-if="!quiz.questions?.length" class="loading-state glass-card text-center">
-      <div class="spinner-border text-primary mb-3" role="status">
-        <span class="visually-hidden">Loading...</span>
+  <div class="quiz-taking">
+    <div class="container-fluid px-4">
+      <!-- Quiz Header -->
+      <div class="quiz-header glass mb-4" v-if="quizData">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h1 class="text-light mb-2">{{ quizData.name }}</h1>
+            <p class="text-muted mb-0">
+              {{ quizData.chapter_name }} • {{ quizData.subject_name }}
+            </p>
       </div>
-      <h5 class="text-light">Loading Quiz...</h5>
-      <p class="text-muted">Please wait while we prepare your quiz.</p>
+          <div class="quiz-timer">
+            <div class="timer-display" :class="{ 'timer-warning': timeRemaining <= 300 }">
+              <i class="bi bi-clock me-2"></i>
+              {{ formatTime(timeRemaining) }}
     </div>
-
-    <!-- Quiz Content -->
-    <div v-else>
-    <!-- Quiz Header -->
-    <div class="quiz-header glass-card mb-4">
-      <div class="d-flex justify-content-between align-items-center">
-        <div class="d-flex align-items-center gap-3">
-          <button 
-            class="btn btn-outline-light d-flex align-items-center gap-2"
-            @click="goBack"
-          >
-            <i class="bi bi-arrow-left"></i>
-            Back
-          </button>
-          <div class="quiz-info">
-            <h2 class="h4 text-light mb-1">{{ quiz.title }}</h2>
-            <p class="text-muted mb-0">{{ quiz.description }}</p>
-            <small class="text-info">{{ quiz.chapterTitle }} • {{ quiz.questions?.length || 0 }} Questions • {{ quiz.totalPoints }} Points</small>
           </div>
         </div>
-        <div class="quiz-timer">
-          <QuizTimer 
-            :timeLimit="quiz.timeLimit" 
-            :isActive="isQuizActive"
-            @timeUp="handleTimeUp"
-            @timeUpdate="handleTimeUpdate"
-          />
+      </div>
+
+      <!-- Loading State -->
+      <div v-if="loading" class="text-center py-5">
+        <div class="spinner-border text-primary mb-3"></div>
+        <p class="text-muted">{{ loadingMessage }}</p>
+      </div>
+
+      <!-- Error State -->
+      <div v-else-if="error" class="alert alert-danger glass-alert">
+        <i class="bi bi-exclamation-triangle me-2"></i>
+        {{ error }}
+        <div class="mt-3">
+          <button class="btn btn-outline-light" @click="goBack">
+            <i class="bi bi-arrow-left me-2"></i>
+            Back to Dashboard
+          </button>
         </div>
       </div>
       
+      <!-- Quiz Content -->
+      <div v-else-if="quizData && !quizSubmitted" class="quiz-content">
       <!-- Progress Bar -->
-      <div class="quiz-progress mt-3">
-        <div class="progress-info mb-2">
-          <span class="text-light">Question {{ currentQuestionIndex + 1 }} of {{ quiz.questions?.length || 0 }}</span>
-          <span class="text-muted">{{ answeredCount }} answered</span>
+        <div class="progress-section glass mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="text-light">
+              Question {{ currentQuestionIndex + 1 }} of {{ questions.length }}
+            </span>
+            <span class="text-muted">
+              {{ Math.round(((currentQuestionIndex + 1) / questions.length) * 100) }}% Complete
+            </span>
         </div>
-        <div class="progress" style="height: 8px;">
+          <div class="progress quiz-progress">
           <div 
-            class="progress-bar bg-primary" 
-            :style="{ width: progressPercentage + '%' }"
+              class="progress-bar" 
+              :style="{ width: ((currentQuestionIndex + 1) / questions.length) * 100 + '%' }"
           ></div>
+          </div>
+        </div>
+
+        <!-- Question Card -->
+        <div class="question-card glass mb-4" v-if="currentQuestion">
+          <div class="question-header mb-4">
+            <div class="d-flex justify-content-between align-items-start">
+              <div class="question-info flex-grow-1">
+                <div class="d-flex align-items-center mb-3">
+                  <span class="badge bg-primary me-2">Q{{ currentQuestionIndex + 1 }}</span>
+                  <span class="badge bg-info">{{ currentQuestion.marks }} {{ currentQuestion.marks === 1 ? 'point' : 'points' }}</span>
+                </div>
+                <h3 class="text-light mb-0">{{ currentQuestion.question_statement }}</h3>
         </div>
       </div>
     </div>
 
-    <!-- Question Navigation Grid -->
-    <div class="question-nav glass-card mb-4">
-      <div class="nav-header mb-3">
-        <h6 class="text-light mb-0">Question Navigator</h6>
+          <!-- Options -->
+          <div class="options-section">
+            <div class="row">
+              <div class="col-md-6 mb-3" v-for="(option, index) in currentQuestion.options" :key="index">
+                <div 
+                  class="option-card" 
+                  :class="{ 'selected': selectedAnswers[currentQuestion.id] === (index + 1) }"
+                  @click="selectAnswer(currentQuestion.id, index + 1)"
+                >
+                  <div class="option-content">
+                    <div class="option-letter">{{ String.fromCharCode(65 + index) }}</div>
+                    <div class="option-text">{{ option }}</div>
+                    <div class="option-check">
+                      <i class="bi bi-check-circle-fill" v-if="selectedAnswers[currentQuestion.id] === (index + 1)"></i>
+                      <i class="bi bi-circle" v-else></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
       </div>
-      <div class="question-grid">
+
+        <!-- Navigation -->
+        <div class="quiz-navigation glass">
+          <div class="d-flex justify-content-between align-items-center">
+            <button 
+              class="btn btn-outline-light"
+              @click="previousQuestion"
+              :disabled="currentQuestionIndex === 0"
+            >
+              <i class="bi bi-arrow-left me-2"></i>
+              Previous
+            </button>
+
+            <div class="question-indicators">
         <button
-          v-for="(question, index) in quiz.questions || []"
+                v-for="(question, index) in questions"
           :key="question.id"
-          class="question-nav-btn"
+                class="question-indicator"
           :class="{
             'current': index === currentQuestionIndex,
-            'answered': userAnswers[question.id] !== undefined,
-            'unanswered': userAnswers[question.id] === undefined
+                  'answered': selectedAnswers[question.id],
+                  'unanswered': !selectedAnswers[question.id]
           }"
           @click="goToQuestion(index)"
         >
           {{ index + 1 }}
         </button>
-      </div>
     </div>
 
-    <!-- Main Question Area -->
-    <div class="question-area glass-card mb-4">
-      <div v-if="currentQuestion" class="question-content">
-        <!-- Question Header -->
-        <div class="question-header mb-4">
-          <div class="d-flex justify-content-between align-items-start">
-            <div class="question-meta">
-              <span class="badge bg-primary me-2">{{ currentQuestion.type.replace('_', ' ').toUpperCase() }}</span>
-              <span class="badge bg-secondary me-2">{{ currentQuestion.difficulty.toUpperCase() }}</span>
-              <span class="badge bg-info">{{ currentQuestion.points }} pts</span>
+            <div>
+              <button 
+                v-if="currentQuestionIndex < questions.length - 1"
+                class="btn btn-primary me-2"
+                @click="nextQuestion"
+              >
+                Next
+                <i class="bi bi-arrow-right ms-2"></i>
+              </button>
+              <button 
+                v-else
+                class="btn btn-success"
+                @click="showSubmitConfirm"
+              >
+                Submit Quiz
+                <i class="bi bi-check-circle ms-2"></i>
+              </button>
             </div>
-            <div class="question-number">
-              <span class="text-primary h5">Q{{ currentQuestionIndex + 1 }}</span>
             </div>
           </div>
         </div>
 
-        <!-- Question Content -->
-        <div class="question-text mb-4">
-          <h5 class="text-light">{{ currentQuestion.content }}</h5>
+      <!-- Quiz Results -->
+      <div v-else-if="quizSubmitted && quizResults" class="quiz-results">
+        <div class="results-card glass text-center">
+          <div class="results-icon mb-4">
+            <i class="bi bi-check-circle-fill text-success display-1" v-if="quizResults.passed"></i>
+            <i class="bi bi-x-circle-fill text-danger display-1" v-else></i>
         </div>
 
-        <!-- Answer Options -->
-        <div class="answer-options">
-          <!-- Multiple Choice -->
-          <div v-if="currentQuestion.type === 'multiple_choice'" class="multiple-choice-options">
-            <div
-              v-for="(option, index) in currentQuestion.options"
-              :key="index"
-              class="option-item mb-3"
-              @click="selectAnswer(index)"
-            >
-              <div class="form-check">
-                <input
-                  :id="`option-${index}`"
-                  v-model="userAnswers[currentQuestion.id]"
-                  class="form-check-input"
-                  type="radio"
-                  :value="index"
-                  name="currentAnswer"
-                >
-                <label :for="`option-${index}`" class="form-check-label text-light">
-                  <span class="option-letter">{{ String.fromCharCode(65 + index) }}.</span>
-                  {{ option.text }}
-                </label>
+          <h2 class="text-light mb-3">
+            {{ quizResults.passed ? 'Congratulations!' : 'Quiz Completed' }}
+          </h2>
+          
+          <p class="text-muted mb-4">
+            {{ quizResults.passed ? 'You have successfully passed the quiz!' : 'Keep practicing to improve your score!' }}
+          </p>
+
+          <!-- Score Details -->
+          <div class="score-details mb-4">
+            <div class="row">
+              <div class="col-md-3 mb-3">
+                <div class="score-metric">
+                  <h3 class="text-primary">{{ Math.round(quizResults.percentage) }}%</h3>
+                  <p class="text-muted">Final Score</p>
+                </div>
+              </div>
+              <div class="col-md-3 mb-3">
+                <div class="score-metric">
+                  <h3 class="text-info">{{ quizResults.correct_answers }}</h3>
+                  <p class="text-muted">Correct Answers</p>
+            </div>
+          </div>
+              <div class="col-md-3 mb-3">
+                <div class="score-metric">
+                  <h3 class="text-secondary">{{ quizResults.total_questions }}</h3>
+                  <p class="text-muted">Total Questions</p>
+                </div>
+              </div>
+              <div class="col-md-3 mb-3">
+                <div class="score-metric">
+                  <h3 class="text-warning">{{ Math.round(quizResults.score.time_taken / 60) }}</h3>
+                  <p class="text-muted">Minutes Taken</p>
+            </div>
               </div>
             </div>
           </div>
 
-          <!-- True/False -->
-          <div v-if="currentQuestion.type === 'true_false'" class="true-false-options">
-            <div class="option-item mb-3" @click="selectAnswer('true')">
-              <div class="form-check">
-                <input
-                  id="option-true"
-                  v-model="userAnswers[currentQuestion.id]"
-                  class="form-check-input"
-                  type="radio"
-                  value="true"
-                  name="currentAnswer"
-                >
-                <label for="option-true" class="form-check-label text-light">
-                  <span class="option-letter">A.</span>
-                  True
-                </label>
-              </div>
-            </div>
-            <div class="option-item mb-3" @click="selectAnswer('false')">
-              <div class="form-check">
-                <input
-                  id="option-false"
-                  v-model="userAnswers[currentQuestion.id]"
-                  class="form-check-input"
-                  type="radio"
-                  value="false"
-                  name="currentAnswer"
-                >
-                <label for="option-false" class="form-check-label text-light">
-                  <span class="option-letter">B.</span>
-                  False
-                </label>
-              </div>
-            </div>
+          <!-- Action Buttons -->
+          <div class="results-actions">
+            <button class="btn btn-primary me-3" @click="goToDashboard">
+              <i class="bi bi-house me-2"></i>
+              Back to Dashboard
+            </button>
+            <button class="btn btn-outline-light" @click="viewScores">
+              <i class="bi bi-graph-up me-2"></i>
+              View All Scores
+            </button>
           </div>
-
-
         </div>
-      </div>
-    </div>
-
-    <!-- Navigation Controls -->
-    <div class="quiz-controls glass-card">
-      <div class="d-flex justify-content-between align-items-center">
-        <button
-          class="btn btn-outline-secondary"
-          :disabled="currentQuestionIndex === 0"
-          @click="previousQuestion"
-        >
-          <i class="bi bi-chevron-left me-2"></i>Previous
-        </button>
-
-        <div class="control-center">
-          <button class="btn btn-outline-info me-3" @click="saveProgress">
-            <i class="bi bi-save me-2"></i>Save Progress
-          </button>
-          <button class="btn btn-warning" @click="showSubmitConfirm">
-            <i class="bi bi-check-circle me-2"></i>Submit Quiz
-          </button>
-        </div>
-
-        <button
-          class="btn btn-primary"
-          @click="nextQuestion"
-        >
-          {{ currentQuestionIndex === (quiz.questions?.length || 1) - 1 ? 'Review' : 'Next' }}
-          <i class="bi bi-chevron-right ms-2"></i>
-        </button>
       </div>
     </div>
 
     <!-- Submit Confirmation Modal -->
-    <BaseModal
-      v-model="showSubmitModal"
-      title="Submit Quiz"
-      size="md"
+    <div 
+      class="modal fade" 
+      id="submitConfirmModal" 
+      tabindex="-1"
     >
-      <div class="submit-confirmation">
-        <div class="text-center mb-4">
-          <i class="bi bi-exclamation-triangle text-warning" style="font-size: 3rem;"></i>
-          <h5 class="text-light mt-3">Are you sure you want to submit?</h5>
-          <p class="text-muted">Once submitted, you cannot change your answers.</p>
-        </div>
-        
-        <div class="quiz-summary">
-          <div class="summary-item">
-            <span class="text-muted">Total Questions:</span>
-            <span class="text-light">{{ quiz.questions?.length || 0 }}</span>
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass">
+          <div class="modal-header">
+            <h5 class="modal-title text-light">Submit Quiz</h5>
+            <button 
+              type="button" 
+              class="btn-close btn-close-white" 
+              data-bs-dismiss="modal"
+            ></button>
           </div>
-          <div class="summary-item">
-            <span class="text-muted">Answered:</span>
-            <span class="text-light">{{ answeredCount }}</span>
+          <div class="modal-body">
+            <div class="submission-summary mb-3">
+              <h6 class="text-light">Quiz Summary:</h6>
+              <ul class="list-unstyled text-muted">
+                <li><i class="bi bi-check-circle me-2"></i>Answered: {{ Object.keys(selectedAnswers).length }} questions</li>
+                <li><i class="bi bi-circle me-2"></i>Unanswered: {{ questions.length - Object.keys(selectedAnswers).length }} questions</li>
+                <li><i class="bi bi-clock me-2"></i>Time remaining: {{ formatTime(timeRemaining) }}</li>
+              </ul>
+            </div>
+            <p class="text-light">
+              Are you sure you want to submit your quiz? This action cannot be undone.
+            </p>
+            <div v-if="questions.length - Object.keys(selectedAnswers).length > 0" class="alert alert-warning">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              You have {{ questions.length - Object.keys(selectedAnswers).length }} unanswered questions.
           </div>
-          <div class="summary-item">
-            <span class="text-muted">Unanswered:</span>
-            <span class="text-warning">{{ (quiz.questions?.length || 0) - answeredCount }}</span>
           </div>
-          <div class="summary-item">
-            <span class="text-muted">Time Remaining:</span>
-            <span class="text-info">{{ formattedTimeRemaining }}</span>
+          <div class="modal-footer">
+            <button 
+              type="button" 
+              class="btn btn-outline-light" 
+              data-bs-dismiss="modal"
+            >
+              Continue Quiz
+            </button>
+            <button 
+              type="button" 
+              class="btn btn-success" 
+              @click="submitQuiz"
+            >
+              Submit Quiz
+            </button>
           </div>
         </div>
       </div>
-      
-      <template #footer>
-        <button class="btn btn-secondary me-3" @click="showSubmitModal = false">
-          Continue Quiz
-        </button>
-        <button class="btn btn-success" @click="submitQuiz">
-          <i class="bi bi-check-circle me-2"></i>Submit Final Answers
-        </button>
-      </template>
-    </BaseModal>
-
-    <!-- Auto-save Indicator -->
-    <div v-if="autoSaving" class="auto-save-indicator">
-      <i class="bi bi-cloud-upload text-info me-2"></i>
-      <span class="text-info">Saving...</span>
     </div>
-    </div> <!-- End Quiz Content -->
   </div>
 </template>
 
 <script>
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import QuizTimer from '@/components/QuizTimer.vue'
-import BaseModal from '@/components/Modal.vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { Modal } from 'bootstrap'
+import quizService from '@/services/quizService'
 
 export default {
   name: 'QuizTakingView',
-  components: {
-    QuizTimer,
-    BaseModal
-  },
   setup() {
-    const route = useRoute()
     const router = useRouter()
+    const route = useRoute()
+    const quizId = route.params.quizId
     
-    // Reactive data
-    const quiz = ref({})
+    const loading = ref(true)
+    const loadingMessage = ref('Loading quiz...')
+    const error = ref(null)
+    const quizData = ref(null)
+    const questions = ref([])
     const currentQuestionIndex = ref(0)
-    const userAnswers = ref({})
-    const isQuizActive = ref(true)
-    const showSubmitModal = ref(false)
-    const autoSaving = ref(false)
+    const selectedAnswers = ref({})
+    const startTime = ref(null)
     const timeRemaining = ref(0)
+    const timerInterval = ref(null)
+    const quizSubmitted = ref(false)
+    const quizResults = ref(null)
 
-    // Computed properties
-    const currentQuestion = computed(() => 
-      quiz.value.questions ? quiz.value.questions[currentQuestionIndex.value] : null
-    )
-
-    const answeredCount = computed(() => 
-      Object.keys(userAnswers.value).length
-    )
-
-    const progressPercentage = computed(() => 
-      quiz.value.questions?.length ? (answeredCount.value / quiz.value.questions.length) * 100 : 0
-    )
-
-    const formattedTimeRemaining = computed(() => {
-      const minutes = Math.floor(timeRemaining.value / 60)
-      const seconds = timeRemaining.value % 60
-      return `${minutes}:${seconds.toString().padStart(2, '0')}`
+    const currentQuestion = computed(() => {
+      return questions.value[currentQuestionIndex.value]
     })
 
-    // Methods
-    const loadQuiz = () => {
-      // Dummy data - replace with API call
-      quiz.value = {
-        id: route.params.id,
-        title: 'JavaScript Fundamentals Quiz',
-        description: 'Test your knowledge of JavaScript basics and concepts',
-        chapterTitle: 'JavaScript Basics',
-        timeLimit: 30, // minutes
-        totalPoints: 10,
-        questions: [
-          {
-            id: 1,
-            type: 'multiple_choice',
-            difficulty: 'easy',
-            points: 2,
-            content: 'What is the correct way to declare a variable in JavaScript?',
-            options: [
-              { text: 'var myVariable;' },
-              { text: 'variable myVariable;' },
-              { text: 'v myVariable;' },
-              { text: 'declare myVariable;' }
-            ],
-            correctAnswer: 0
-          },
-          {
-            id: 2,
-            type: 'true_false',
-            difficulty: 'easy',
-            points: 2,
-            content: 'JavaScript is a case-sensitive language.',
-            correctAnswer: 'true'
-          },
-          {
-            id: 3,
-            type: 'multiple_choice',
-            difficulty: 'medium',
-            points: 3,
-            content: 'Which of the following is NOT a JavaScript data type?',
-            options: [
-              { text: 'undefined' },
-              { text: 'number' },
-              { text: 'boolean' },
-              { text: 'float' }
-            ],
-            correctAnswer: 3
-          },
-          {
-            id: 4,
-            type: 'multiple_choice',
-            difficulty: 'medium',
-            points: 2,
-            content: 'What does the typeof operator return for an array in JavaScript?',
-            options: [
-              { text: 'array' },
-              { text: 'object' },
-              { text: 'list' },
-              { text: 'collection' }
-            ],
-            correctAnswer: 1
-          },
-          {
-            id: 5,
-            type: 'true_false',
-            difficulty: 'easy',
-            points: 1,
-            content: 'In JavaScript, the == operator performs strict equality comparison.',
-            correctAnswer: 'false'
-          }
-        ]
+    const loadQuiz = async () => {
+      try {
+        loading.value = true
+        loadingMessage.value = 'Loading quiz...'
+        
+        // Start the quiz and get questions
+        const response = await quizService.startQuiz(quizId)
+        
+        quizData.value = response
+        questions.value = response.questions
+        startTime.value = response.start_time
+        
+        // Set up timer
+        if (response.time_duration) {
+          timeRemaining.value = response.time_duration * 60 // Convert minutes to seconds
+          startTimer()
+        }
+        
+        loading.value = false
+      } catch (err) {
+        console.error('Failed to load quiz:', err)
+        error.value = err.response?.data?.message || 'Failed to load quiz'
+        loading.value = false
       }
-      
-      // Initialize user answers
-      quiz.value.questions?.forEach(question => {
-        userAnswers.value[question.id] = undefined
-      })
     }
 
-    const goToQuestion = (index) => {
-      currentQuestionIndex.value = index
+    const startTimer = () => {
+      timerInterval.value = setInterval(() => {
+        if (timeRemaining.value > 0) {
+          timeRemaining.value--
+        } else {
+          // Time's up, auto-submit
+          autoSubmitQuiz()
+        }
+      }, 1000)
     }
 
-    const selectAnswer = (answer) => {
-      userAnswers.value[currentQuestion.value.id] = answer
-      autoSave()
+    const formatTime = (seconds) => {
+      const minutes = Math.floor(seconds / 60)
+      const remainingSeconds = seconds % 60
+      return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
+    }
+
+    const selectAnswer = (questionId, optionIndex) => {
+      selectedAnswers.value[questionId] = optionIndex
     }
 
     const nextQuestion = () => {
-      if (currentQuestionIndex.value < (quiz.value.questions?.length || 1) - 1) {
+      if (currentQuestionIndex.value < questions.value.length - 1) {
         currentQuestionIndex.value++
       }
     }
@@ -390,291 +349,317 @@ export default {
       }
     }
 
-    const autoSave = () => {
-      autoSaving.value = true
-      // Simulate auto-save
-      setTimeout(() => {
-        autoSaving.value = false
-      }, 1000)
-    }
-
-    const saveProgress = () => {
-      autoSave()
-      // Could show a toast notification here
+    const goToQuestion = (index) => {
+      currentQuestionIndex.value = index
     }
 
     const showSubmitConfirm = () => {
-      showSubmitModal.value = true
+      const modal = new Modal(document.getElementById('submitConfirmModal'))
+      modal.show()
     }
 
-    const submitQuiz = () => {
-      // Calculate score and navigate to results
-      const result = calculateScore()
-      
-      // Navigate to results page with score data
-      router.push({
-        name: 'QuizResult',
-        params: { id: quiz.value.id },
-        query: { 
-          score: result.score,
-          percentage: result.percentage,
-          totalQuestions: quiz.value.questions?.length || 0,
-          correctAnswers: result.correctAnswers,
-          answers: JSON.stringify(userAnswers.value)
+    const submitQuiz = async () => {
+      try {
+        loading.value = true
+        loadingMessage.value = 'Submitting quiz...'
+
+        // Close modal
+        const modal = Modal.getInstance(document.getElementById('submitConfirmModal'))
+        modal?.hide()
+
+        // Clear timer
+        if (timerInterval.value) {
+          clearInterval(timerInterval.value)
         }
-      })
-    }
 
-    const calculateScore = () => {
-      let score = 0
-      let correctAnswers = 0
-      
-              quiz.value.questions?.forEach(question => {
-        const userAnswer = userAnswers.value[question.id]
-        if (userAnswer !== undefined && userAnswer !== null) {
-          // For multiple choice, check if the selected index matches correct answer
-          if (question.type === 'multiple_choice') {
-            if (parseInt(userAnswer) === question.correctAnswer) {
-              score += question.points
-              correctAnswers++
-            }
-          } 
-          // For true/false, check if the selected string matches correct answer
-          else if (question.type === 'true_false') {
-            if (userAnswer.toString() === question.correctAnswer.toString()) {
-              score += question.points
-              correctAnswers++
-            }
-          }
+        const submitData = {
+          answers: selectedAnswers.value,
+          start_time: startTime.value
         }
-      })
-      
-      const percentage = Math.round((score / quiz.value.totalPoints) * 100)
-      
-      return { score, percentage, correctAnswers }
+
+        const response = await quizService.submitQuiz(quizId, submitData)
+        
+        quizResults.value = response
+        quizSubmitted.value = true
+        loading.value = false
+      } catch (err) {
+        console.error('Failed to submit quiz:', err)
+        error.value = err.response?.data?.message || 'Failed to submit quiz'
+        loading.value = false
+      }
     }
 
-    const handleTimeUp = () => {
-      isQuizActive.value = false
+    const autoSubmitQuiz = () => {
+      // Auto-submit when time runs out
       submitQuiz()
     }
 
-    const handleTimeUpdate = (seconds) => {
-      timeRemaining.value = seconds
-    }
-
     const goBack = () => {
-      router.back()
+      router.push('/user/dashboard')
     }
 
-    // Lifecycle
-    onMounted(() => {
-      loadQuiz()
+    const goToDashboard = () => {
+      router.push('/user/dashboard')
+    }
+
+    const viewScores = () => {
+      router.push('/user/scores')
+    }
+
+    // Cleanup on component unmount
+    onUnmounted(() => {
+      if (timerInterval.value) {
+        clearInterval(timerInterval.value)
+      }
     })
 
     // Prevent page refresh during quiz
-    onBeforeUnmount(() => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
-    })
-
-    const handleBeforeUnload = (e) => {
-      if (isQuizActive.value) {
-        e.preventDefault()
-        e.returnValue = ''
+    const handleBeforeUnload = (event) => {
+      if (!quizSubmitted.value && questions.value.length > 0) {
+        event.preventDefault()
+        event.returnValue = ''
       }
     }
 
     onMounted(() => {
+      loadQuiz()
       window.addEventListener('beforeunload', handleBeforeUnload)
     })
 
+    onUnmounted(() => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    })
+
     return {
-      quiz,
-      currentQuestionIndex,
+      loading,
+      loadingMessage,
+      error,
+      quizData,
+      questions,
       currentQuestion,
-      userAnswers,
-      isQuizActive,
-      showSubmitModal,
-      autoSaving,
-      answeredCount,
-      progressPercentage,
-      formattedTimeRemaining,
-      goToQuestion,
+      currentQuestionIndex,
+      selectedAnswers,
+      timeRemaining,
+      quizSubmitted,
+      quizResults,
+      formatTime,
       selectAnswer,
       nextQuestion,
       previousQuestion,
-      autoSave,
-      saveProgress,
+      goToQuestion,
       showSubmitConfirm,
       submitQuiz,
-      handleTimeUp,
-      handleTimeUpdate,
-      goBack
+      goBack,
+      goToDashboard,
+      viewScores
     }
   }
 }
 </script>
 
 <style scoped>
-.quiz-taking-view {
-  padding: 2rem;
+.quiz-taking {
   min-height: 100vh;
-  background: linear-gradient(135deg, rgba(13, 110, 253, 0.1) 0%, rgba(108, 117, 125, 0.05) 100%);
+  background: linear-gradient(135deg, 
+    #0a0a0f 0%, 
+    #1a1a2e 25%, 
+    #16213e 50%, 
+    #0f0f23 75%, 
+    #0a0a14 100%
+  );
+  background-size: 400% 400%;
+  animation: gradientShift 20s ease infinite;
+  padding: 2rem 0;
 }
 
-.loading-state {
-  min-height: 300px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
-.glass-card {
+.glass, .quiz-header, .progress-section, .question-card, .quiz-navigation, .results-card {
   background: rgba(35, 39, 43, 0.6);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   padding: 1.5rem;
 }
 
-.quiz-header {
-  position: sticky;
-  top: 2rem;
-  z-index: 100;
-}
-
-.quiz-timer {
+.timer-display {
+  background: rgba(13, 110, 253, 0.2);
+  border: 1px solid rgba(13, 110, 253, 0.5);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #0d6efd;
+  min-width: 120px;
   text-align: center;
 }
 
-.progress {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 0.5rem;
+.timer-warning {
+  background: rgba(220, 53, 69, 0.2) !important;
+  border-color: rgba(220, 53, 69, 0.5) !important;
+  color: #dc3545 !important;
+  animation: pulse 1s infinite;
 }
 
-.question-nav {
-  padding: 1rem;
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
 }
 
-.question-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
-  gap: 0.5rem;
-}
-
-.question-nav-btn {
-  width: 40px;
-  height: 40px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.05);
-  color: #fff;
-  border-radius: 0.5rem;
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.question-nav-btn:hover {
+.quiz-progress {
+  height: 8px;
   background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
 }
 
-.question-nav-btn.current {
-  background: rgba(13, 110, 253, 0.8);
+.quiz-progress .progress-bar {
+  background: linear-gradient(90deg, #0d6efd, #6f42c1);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.option-card {
+  background: rgba(35, 39, 43, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 1rem;
+  padding: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  height: 100%;
+}
+
+.option-card:hover {
+  border-color: rgba(13, 110, 253, 0.5);
+  background: rgba(35, 39, 43, 0.6);
+}
+
+.option-card.selected {
   border-color: #0d6efd;
+  background: rgba(13, 110, 253, 0.2);
 }
 
-.question-nav-btn.answered {
-  background: rgba(25, 135, 84, 0.6);
-  border-color: #198754;
-}
-
-.question-nav-btn.unanswered {
-  background: rgba(220, 53, 69, 0.2);
-  border-color: rgba(220, 53, 69, 0.5);
-}
-
-.question-area {
-  min-height: 400px;
-}
-
-.option-item {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.75rem;
-  padding: 1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.option-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(13, 110, 253, 0.3);
+.option-content {
+  display: flex;
+  align-items: center;
 }
 
 .option-letter {
-  font-weight: 600;
-  color: #0d6efd;
-  margin-right: 0.5rem;
-}
-
-.essay-textarea {
-  background: rgba(35, 39, 43, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #f8f9fa;
-  border-radius: 0.5rem;
-}
-
-.essay-textarea:focus {
-  background: rgba(35, 39, 43, 1);
-  border-color: rgba(13, 110, 253, 0.5);
-  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
-  color: #f8f9fa;
-}
-
-.quiz-controls {
-  position: sticky;
-  bottom: 2rem;
-  z-index: 100;
-}
-
-.submit-confirmation .summary-item {
+  background: rgba(13, 110, 253, 0.2);
+  border: 1px solid rgba(13, 110, 253, 0.5);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-  padding: 0.5rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 0.25rem;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  color: #0d6efd;
+  margin-right: 1rem;
+  flex-shrink: 0;
 }
 
-.auto-save-indicator {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  background: rgba(35, 39, 43, 0.9);
-  padding: 0.5rem 1rem;
+.option-card.selected .option-letter {
+  background: #0d6efd;
+  color: white;
+}
+
+.option-text {
+  flex-grow: 1;
+  color: #f8f9fa;
+  font-size: 1rem;
+}
+
+.option-check {
+  color: #0d6efd;
+  font-size: 1.25rem;
+  margin-left: 1rem;
+}
+
+.question-indicators {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.question-indicator {
+  width: 40px;
+  height: 40px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  background: rgba(35, 39, 43, 0.6);
+  color: #f8f9fa;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+}
+
+.question-indicator.current {
+  border-color: #0d6efd;
+  background: rgba(13, 110, 253, 0.2);
+  color: #0d6efd;
+}
+
+.question-indicator.answered {
+  border-color: #198754;
+  background: rgba(25, 135, 84, 0.2);
+  color: #198754;
+}
+
+.question-indicator.unanswered {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.score-metric {
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 0.5rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  z-index: 1000;
 }
 
-.form-check-input:checked {
-  background-color: #0d6efd;
-  border-color: #0d6efd;
+.score-metric h3 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: bold;
 }
 
-@media (max-width: 768px) {
-  .quiz-taking-view {
-    padding: 1rem;
+.score-metric p {
+  margin: 0;
+  font-size: 0.875rem;
+}
+
+.modal-content.glass {
+  background: rgba(35, 39, 43, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(15px);
+}
+
+.glass-alert {
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  backdrop-filter: blur(10px);
+}
+
+.results-icon {
+  animation: fadeInScale 0.5s ease-out;
+}
+
+@keyframes fadeInScale {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
   }
-  
-  .question-grid {
-    grid-template-columns: repeat(auto-fill, minmax(35px, 1fr));
-  }
-  
-  .question-nav-btn {
-    width: 35px;
-    height: 35px;
-    font-size: 0.9rem;
+  100% {
+    opacity: 1;
+    transform: scale(1);
   }
 }
 </style> 

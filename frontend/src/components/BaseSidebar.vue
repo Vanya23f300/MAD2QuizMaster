@@ -42,6 +42,7 @@ export default {
       if (this.userRole === 'admin') {
         return [
           { path: '/admin', label: 'Dashboard', icon: 'bi bi-house' },
+          { path: '/admin/users', label: 'User Management', icon: 'bi bi-people' },
           { path: '/admin/subjects', label: 'Subjects', icon: 'bi bi-book' },
           { path: '/admin/chapters', label: 'Chapters', icon: 'bi bi-collection' },
           { path: '/admin/quizzes', label: 'Quizzes', icon: 'bi bi-file-text' },
@@ -53,6 +54,7 @@ export default {
           { path: '/user', label: 'Dashboard', icon: 'bi bi-house' },
           { path: '/user/scores', label: 'My Scores', icon: 'bi bi-trophy' },
           { path: '/user/summary', label: 'Summary Charts', icon: 'bi bi-graph-up' },
+          { path: '/user/profile', label: 'My Profile', icon: 'bi bi-person-circle' },
           { path: '/login', label: 'Logout', icon: 'bi bi-box-arrow-right' }
         ]
       }
@@ -68,7 +70,6 @@ export default {
 
 <style scoped>
 .sidebar {
-  min-height: 100vh;
   padding: 1.5rem;
   background: rgba(35, 39, 43, 0.6);
   border-radius: 1rem;
@@ -77,7 +78,8 @@ export default {
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   transition: width 0.3s ease;
-  width: 250px;
+  width: 100%;
+  max-width: 250px;
 }
 
 .sidebar-collapsed {
@@ -131,4 +133,4 @@ export default {
 .sidebar-collapsed .sidebar-title {
   display: none;
 }
-</style> 
+</style>

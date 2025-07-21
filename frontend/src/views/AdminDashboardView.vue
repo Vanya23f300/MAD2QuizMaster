@@ -1,117 +1,153 @@
 <template>
   <div class="admin-dashboard">
-    <div class="row">
-      <!-- Sidebar -->
-      <div class="col-lg-3 col-md-4">
-        <BaseSidebar user-role="admin" />
+    <div class="container-fluid px-4">
+      <!-- Page Header -->
+      <div class="page-header glass mb-4">
+        <div class="d-flex justify-content-between align-items-center">
+          <div>
+            <h1 class="text-light mb-2">
+              <i class="bi bi-shield-lock me-1"></i>
+              Admin Dashboard
+            </h1>
+            <p class="text-muted mb-0">
+              Welcome back, Quiz Master! Manage your platform here.
+            </p>
+          </div>
+          <button 
+            class="btn btn-outline-light" 
+            @click="logout"
+          >
+            <i class="bi bi-box-arrow-right me-2"></i>
+            Logout
+          </button>
+        </div>
       </div>
       
-      <!-- Main Content -->
-      <div class="col-lg-9 col-md-8">
-        <!-- Header -->
-        <div class="dashboard-header glass mb-5">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <h1 class="text-light mb-2">Welcome back, Admin!</h1>
-              <p class="text-secondary mb-0 fs-5">Here's what's happening with your quiz platform</p>
+      <!-- Quick Actions -->
+      <div class="glass mb-4">
+        <div class="card-body">
+          <h3 class="text-light mb-3">
+            <i class="bi bi-lightning me-2"></i>
+            Quick Actions
+          </h3>
+          <div class="row">
+            <div class="col-md-4 mb-3">
+              <router-link to="/admin/subjects" class="btn btn-primary w-100 py-3">
+                <i class="bi bi-book me-2"></i>
+                Manage Subjects
+              </router-link>
             </div>
-            <SearchBar v-model="searchQuery" placeholder="Search subjects, quizzes..." />
+            <div class="col-md-4 mb-3">
+              <router-link to="/admin/chapters" class="btn btn-outline-light w-100 py-3">
+                <i class="bi bi-layers me-2"></i>
+                Manage Chapters
+              </router-link>
+            </div>
+            <div class="col-md-4 mb-3">
+              <router-link to="/admin/quizzes" class="btn btn-outline-light w-100 py-3">
+                <i class="bi bi-journal-text me-2"></i>
+                Manage Quizzes & Questions
+              </router-link>
+            </div>
           </div>
         </div>
+      </div>
 
-        <!-- Statistics Row -->
-        <div class="row mb-5">
-          <div class="col-xl-3 col-lg-6 mb-4">
-            <StatsWidget
-              :value="stats.totalSubjects"
-              label="Total Subjects"
-              icon="bi bi-book"
-              color="primary"
-              trend="+12"
-              trend-direction="up"
-            />
+      <!-- Platform Statistics -->
+      <div class="row">
+        <div class="col-md-8">
+          <div class="glass mb-4">
+            <div class="card-body">
+              <h3 class="text-light mb-3">
+                <i class="bi bi-bar-chart me-2"></i>
+                Platform Statistics
+              </h3>
+              
+              <!-- Loading State -->
+              <div v-if="loading" class="text-center py-5">
+                <div class="spinner-border text-primary mb-3"></div>
+                <p class="text-muted">Loading statistics...</p>
           </div>
-          <div class="col-xl-3 col-lg-6 mb-4">
-            <StatsWidget
-              :value="stats.totalQuizzes"
-              label="Active Quizzes"
-              icon="bi bi-file-text"
-              color="success"
-              trend="+8%"
-              trend-direction="up"
-            />
+
+              <!-- Error State -->
+              <div v-else-if="error" class="alert alert-danger glass-alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                {{ error }}
           </div>
-          <div class="col-xl-3 col-lg-6 mb-4">
-            <StatsWidget
-              :value="stats.totalUsers"
-              label="Registered Users"
-              icon="bi bi-people"
-              color="warning"
-              trend="+15"
-              trend-direction="up"
-            />
-          </div>
-          <div class="col-xl-3 col-lg-6 mb-4">
-            <StatsWidget
-              :value="stats.totalQuestions"
-              label="Total Questions"
-              icon="bi bi-question-circle"
-              color="info"
-              trend="+5%"
-              trend-direction="up"
-            />
+
+              <!-- Statistics Grid -->
+              <div v-else class="row">
+                <div class="col-md-6 mb-3">
+                  <div class="stat-card">
+                    <div class="stat-number">{{ stats.totalUsers || 0 }}</div>
+                    <div class="stat-label">Total Users</div>
           </div>
         </div>
-
-        <!-- Quick Actions -->
-        <div class="row mb-5">
-          <div class="col-12">
-            <QuickActions @action-click="handleQuickAction" />
+                <div class="col-md-6 mb-3">
+                  <div class="stat-card">
+                    <div class="stat-number">{{ stats.totalQuizzes || 0 }}</div>
+                    <div class="stat-label">Total Quizzes</div>
           </div>
         </div>
-
-        <!-- Content Sections -->
-        <div class="row">
-          <!-- Recent Activity -->
-          <div class="col-lg-6 mb-4">
-            <DashboardCard title="Recent Activity" icon="bi bi-clock-history">
-              <div class="activity-list">
-                <div v-for="activity in recentActivity" :key="activity.id" class="activity-item">
-                  <div class="activity-icon">
-                    <i :class="activity.icon"></i>
+                <div class="col-md-6 mb-3">
+                  <div class="stat-card">
+                    <div class="stat-number">{{ stats.activeUsers || 0 }}</div>
+                    <div class="stat-label">Active Users</div>
                   </div>
-                  <div class="activity-content">
-                    <div class="activity-text text-light">{{activity.text }}</div>
-                    <div class="activity-time text-secondary">{{activity.time }}</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <div class="stat-card">
+                    <div class="stat-number">{{ stats.avgQuizCompletion || 0 }}%</div>
+                    <div class="stat-label">Avg Completion</div>
                   </div>
                 </div>
               </div>
-            </DashboardCard>
+            </div>
           </div>
+        </div>
+        
+        <div class="col-md-4">
+          <div class="glass mb-4">
+            <div class="card-body">
+              <h3 class="text-light mb-3">
+                <i class="bi bi-clock-history me-2"></i>
+                Recent Activities
+              </h3>
+              
+              <!-- Loading State -->
+              <div v-if="loading" class="text-center py-3">
+                <div class="spinner-border text-primary mb-2"></div>
+                <p class="text-muted">Loading activities...</p>
+              </div>
 
-          <!-- Upcoming Quizzes -->
-          <div class="col-lg-6 mb-4">
-            <DashboardCard title="Upcoming Quizzes" icon="bi bi-calendar-event">
-              <div class="quiz-list">
-                <div v-for="quiz in upcomingQuizzes" :key="quiz.id" class="quiz-item">
-                  <div class="quiz-info">
-                    <h6 class="quiz-title text-light mb-1">{{ quiz.title }}</h6>
-                    <p class="quiz-subject text-secondary mb-2">{{ quiz.subject }}</p>
-                    <div class="quiz-meta">
-                      <span class="quiz-date text-secondary me-3">
-                        <i class="bi bi-calendar me-1"></i>{{ quiz.date }}
-                      </span>
-                      <span class="quiz-duration text-secondary">
-                        <i class="bi bi-clock me-1"></i>{{ quiz.duration }}
-                      </span>
+              <!-- Error State -->
+              <div v-else-if="error" class="alert alert-danger glass-alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                Failed to load activities
                     </div>
+
+              <!-- Activities List -->
+              <div v-else-if="activities.length > 0" class="activities-list">
+                <div 
+                  v-for="activity in activities" 
+                  :key="activity.id" 
+                  class="activity-item"
+                >
+                  <div class="activity-description text-light">
+                    {{ activity.description }}
                   </div>
-                  <div class="quiz-actions">
-                    <button class="btn btn-sm btn-primary">View</button>
+                  <div class="activity-time text-muted">
+                    {{ formatTimeAgo(activity.timestamp) }}
                   </div>
                 </div>
               </div>
-            </DashboardCard>
+
+              <!-- Empty State -->
+              <div v-else class="text-center py-3">
+                <i class="bi bi-inbox text-muted display-4"></i>
+                <p class="text-muted mt-2">No recent activities</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -120,112 +156,130 @@
 </template>
 
 <script>
-import BaseSidebar from '../components/BaseSidebar.vue'
-import DashboardCard from '../components/DashboardCard.vue'
-import SearchBar from '../components/SearchBar.vue'
-import StatsWidget from '../components/StatsWidget.vue'
-import QuickActions from '../components/QuickActions.vue'
+/* eslint-disable no-unused-vars */
+import dashboardService from '@/services/dashboard-service'
+import authService from '@/services/auth'
 
 export default {
   name: 'AdminDashboardView',
-  components: {
-    BaseSidebar,
-    DashboardCard,
-    SearchBar,
-    StatsWidget,
-    QuickActions
-  },
   data() {
     return {
-      searchQuery: '',
-      stats: {
-        totalSubjects: 12,
-        totalQuizzes: 45,
-        totalUsers: 234,
-        totalQuestions: 567
-      },
-      recentActivity: [
-        {
-          id: 1,
-          text: 'New quiz "JavaScript Basics" created',
-          time: '2 hours ago',
-          icon: 'bi bi-file-earmark-plus text-success'
-        },
-        {
-          id: 2,
-          text: 'User John Doe completed "HTML Fundamentals"',
-          time: '3 hours ago',
-          icon: 'bi bi-check-circle text-primary'
-        },
-        {
-          id: 3,
-          text: 'New subject "Python Programming" added',
-          time: '5 hours ago',
-          icon: 'bi bi-plus-circle text-warning'
-        },
-        {
-          id: 4,
-          text: 'Quiz "CSS Styling" updated',
-          time: '1 day ago',
-          icon: 'bi bi-pencil text-info'
-        }
-      ],
-      upcomingQuizzes: [
-        {
-          id: 1,
-          title: 'JavaScript Basics',
-          subject: 'Web Development',
-          date: '2024-01-15',
-          duration: '30 min'
-        },
-        {
-          id: 2,
-          title: 'Python Fundamentals',
-          subject: 'Programming',
-          date: '2024-01-20',
-          duration: '45 min'
-        },
-        {
-          id: 3,
-          title: 'Database Design',
-          subject: 'Computer Science',
-          date: '2024-01-25',
-          duration: '60 min'
-        }
-      ]
+      adminName: this.getAdminName(),
+      stats: {},
+      activities: [],
+      loading: false,
+      error: null
     }
   },
+  mounted() {
+    this.fetchDashboardStats()
+    this.fetchActivities()
+  },
   methods: {
-    handleQuickAction(actionId) {
-      console.log('Quick action clicked:', actionId)
-      
-      // Navigate to appropriate CRUD pages
-      switch (actionId) {
-        case 'add-subject':
-        case 'manage-subjects':
-          this.$router.push('/admin/subjects')
-          break
-        case 'add-quiz':
-        case 'manage-quizzes':
-          this.$router.push('/admin/quizzes')
-          break
-        case 'manage-chapters':
-          this.$router.push('/admin/chapters')
-          break
-        case 'manage-questions':
-          this.$router.push('/admin/questions')
-          break
-        case 'view-reports':
-          // TODO: Navigate to reports page
-          console.log('Reports page not implemented yet')
-          break
-        case 'manage-users':
-          // TODO: Navigate to users management page
-          console.log('Users management not implemented yet')
-          break
-        default:
-          console.log('Unknown action:', actionId)
+    getAdminName() {
+      try {
+        const userString = localStorage.getItem('user')
+        if (userString) {
+          const user = JSON.parse(userString)
+          return user.username || user.email || 'Admin'
+        }
+        return 'Admin'
+      } catch (error) {
+        console.error('Error parsing admin user data:', error)
+        return 'Admin'
       }
+    },
+
+    async fetchDashboardStats() {
+      this.loading = true
+      this.error = null
+
+      try {
+        console.log('🔍 Fetching Dashboard Stats...')
+        
+        // eslint-disable-next-line no-undef
+        const result = await dashboardService.getDashboardStats()
+        
+        console.log('📊 Dashboard Stats Result:', result)
+        
+        if (result.success) {
+          // Ensure stats are always numbers or 0
+          this.stats = {
+            totalUsers: result.data.totalUsers || 0,
+            activeUsers: result.data.activeUsers || 0,
+            userGrowth: result.data.userGrowth || 0,
+            totalQuizzes: result.data.totalQuizzes || 0,
+            avgQuizCompletion: result.data.avgQuizCompletion || 0
+          }
+
+          console.log('🔢 Processed Stats:', this.stats)
+        } else {
+          console.error('❌ Dashboard Stats Error:', result.message)
+          this.error = result.message || 'Failed to load dashboard statistics'
+        }
+      } catch (error) {
+        console.error('❌ Dashboard Stats Fetch Error:', error)
+        
+        // More detailed error logging
+        if (error.response) {
+          console.error('Response Error Details:', {
+            status: error.response.status,
+            data: error.response.data,
+            headers: error.response.headers
+          })
+        }
+        
+        this.error = 'Failed to retrieve dashboard statistics. Please try again.'
+      } finally {
+        this.loading = false
+    }
+  },
+
+    async fetchActivities() {
+      this.loading = true
+      this.error = null
+
+      try {
+        console.log('🔍 Fetching Recent Activities...')
+      
+        // eslint-disable-next-line no-undef
+        const result = await dashboardService.getRecentActivities()
+        
+        console.log('📊 Recent Activities Result:', result)
+        
+        if (result.success) {
+          this.activities = result.data
+          console.log('📋 Processed Activities:', this.activities)
+        } else {
+          console.error('❌ Recent Activities Error:', result.message)
+          this.error = result.message
+        }
+      } catch (error) {
+        console.error('❌ Recent Activities Fetch Error:', error)
+        
+        this.error = 'Failed to retrieve recent activities. Please try again.'
+      } finally {
+        this.loading = false
+      }
+    },
+
+    logout() {
+      // eslint-disable-next-line no-undef
+      authService.logout()
+      this.$router.push('/login')
+    },
+
+    formatTimeAgo(timestamp) {
+      if (!timestamp) return 'N/A'
+      
+      const now = new Date()
+      const past = new Date(timestamp)
+      const diff = (now - past) / 1000 // seconds
+      
+      if (diff < 60) return 'Just now'
+      if (diff < 3600) return `${Math.floor(diff/60)} mins ago`
+      if (diff < 86400) return `${Math.floor(diff/3600)} hours ago`
+      return `${Math.floor(diff/86400)} days ago`
     }
   }
 }
@@ -233,127 +287,138 @@ export default {
 
 <style scoped>
 .admin-dashboard {
-  padding: 2rem;
+  min-height: 100vh;
+  background: linear-gradient(135deg, 
+    #0a0a0f 0%, 
+    #1a1a2e 25%, 
+    #16213e 50%, 
+    #0f0f23 75%, 
+    #0a0a14 100%
+  );
+  background-size: 400% 400%;
+  animation: gradientShift 20s ease infinite;
+  padding: 2rem 0;
 }
 
-.dashboard-header {
-  background: rgba(35, 43, 51, 0.8);
-  border-radius: 1.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  padding: 2rem;
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 }
 
-.activity-list {
-  max-height: 400px;
+.page-header, .glass {
+  background: rgba(35, 39, 43, 0.6);
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 1.5rem;
+}
+
+.stat-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+}
+
+.stat-number {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #667eea;
+  margin-bottom: 0.5rem;
+}
+
+.stat-label {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.activities-list {
+  max-height: 300px;
   overflow-y: auto;
 }
 
 .activity-item {
-  display: flex;
-  align-items: flex-start;
-  padding: 1rem;
+  padding: 0.75rem 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  transition: background-color 0.2s;
-}
-
-.activity-item:hover {
-  background: rgba(255, 255, 255, 0.02);
+  transition: all 0.3s ease;
 }
 
 .activity-item:last-child {
   border-bottom: none;
 }
 
-.activity-icon {
-  font-size: 1.25rem;
-  margin-right: 1rem;
-  width: 2.5rem;
-  text-align: center;
-  margin-top: 0.25rem;
+.activity-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  margin: 0 -0.75rem;
 }
 
-.activity-content {
-  flex: 1;
-}
-
-.activity-text {
-  font-size: 0.95rem;
+.activity-description {
+  font-size: 0.9rem;
   margin-bottom: 0.25rem;
-  line-height: 1.4;
 }
 
 .activity-time {
-  font-size: 0.85rem;
-}
-
-.quiz-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
-
-.quiz-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.25rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  transition: background-color 0.2s;
-}
-
-.quiz-item:hover {
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.quiz-item:last-child {
-  border-bottom: none;
-}
-
-.quiz-info {
-  flex: 1;
-}
-
-.quiz-title {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 0.25rem;
-}
-
-.quiz-subject {
-  font-size: 0.9rem;
-  margin-bottom: 0.5rem;
-}
-
-.quiz-meta {
-  display: flex;
-  align-items: center;
   font-size: 0.8rem;
 }
 
-.quiz-actions {
-  margin-left: 1rem;
+.glass-alert {
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  backdrop-filter: blur(10px);
 }
 
-/* Responsive adjustments */
+/* Button styling */
+.btn {
+  transition: all 0.3s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Custom scrollbar for activities */
+.activities-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.activities-list::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+
+.activities-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.activities-list::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 @media (max-width: 768px) {
   .admin-dashboard {
+    padding: 1rem 0;
+  }
+  
+  .page-header, .glass {
     padding: 1rem;
   }
   
-  .dashboard-header {
-    padding: 1.5rem;
-  }
-  
-  .quiz-item {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-  
-  .quiz-actions {
-    margin-left: 0;
-    margin-top: 1rem;
+  .stat-number {
+    font-size: 2rem;
   }
 }
 </style> 

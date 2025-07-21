@@ -1,66 +1,113 @@
 <template>
-  <div class="user-dashboard">
+  <div class="user-dashboard container-fluid">
     <div class="row">
       <!-- Sidebar -->
-      <div class="col-lg-3 col-md-4">
-        <BaseSidebar user-role="user" />
+      <div class="col-md-2 sidebar glass-card">
+        <nav class="user-nav">
+          <ul class="nav flex-column">
+            <li class="nav-item">
+              <router-link to="/user" class="nav-link active">
+                <i class="bi bi-speedometer2 me-2"></i>Dashboard
+              </router-link>
+            </li>
+            <li class="nav-item">
+              <router-link to="/user/scores" class="nav-link">
+                <i class="bi bi-trophy me-2"></i>My Scores
+              </router-link>
+            </li>
+            <li class="nav-item">
+              <router-link to="/user/summary" class="nav-link">
+                <i class="bi bi-graph-up me-2"></i>Summary Charts
+              </router-link>
+            </li>
+            <li class="nav-item">
+              <a href="#" class="nav-link" @click.prevent="logout">
+                <i class="bi bi-box-arrow-right me-2"></i>Logout
+              </a>
+            </li>
+          </ul>
+        </nav>
       </div>
-      
+
       <!-- Main Content -->
-      <div class="col-lg-9 col-md-8">
-        <div class="container-fluid p-4">
-          <!-- Header -->
-          <div class="mb-4">
-            <div class="d-flex align-items-center gap-3 mb-2">
-              <button 
-                class="btn btn-outline-light d-flex align-items-center gap-2"
-                @click="goBack"
+      <div class="col-md-10 main-content">
+        <!-- Welcome Section -->
+        <div class="dashboard-header glass-card mb-4">
+          <h1 class="text-light">
+            <i class="bi bi-speedometer2 me-2"></i>
+            Welcome back, {{ username }}!
+          </h1>
+          <p class="text-muted">Take quizzes and track your progress</p>
+        </div>
+
+        <!-- Available Subjects Section -->
+        <div class="available-subjects glass-card mb-4">
+          <div class="card-header d-flex justify-content-between align-items-center">
+            <h3 class="text-light mb-0">
+              <i class="bi bi-book me-2"></i>
+              Available Subjects
+            </h3>
+            <button 
+              class="btn btn-sm btn-outline-light" 
+              @click="fetchSubjects"
+              :disabled="loading"
+            >
+              <i class="bi bi-arrow-clockwise me-2"></i>
+              Refresh
+            </button>
+          </div>
+          
+          <div class="card-body">
+            <!-- Loading State -->
+            <div v-if="loading" class="text-center py-5">
+              <div class="spinner-border text-primary mb-3"></div>
+              <p class="text-muted">Loading subjects...</p>
+            </div>
+
+            <!-- Error State -->
+            <div v-else-if="error" class="alert alert-danger">
+              <i class="bi bi-exclamation-triangle me-2"></i>
+              {{ error }}
+            </div>
+
+            <!-- Empty State -->
+            <div 
+              v-else-if="!loading && subjects.length === 0" 
+              class="empty-state text-center py-5"
+            >
+              <i class="bi bi-book display-1 text-muted mb-3"></i>
+              <h4 class="text-light">No Subjects Available</h4>
+              <p class="text-muted">
+                Subjects will be added by the admin soon. Check back later!
+              </p>
+            </div>
+
+            <!-- Subjects Grid -->
+            <div v-else class="row g-4">
+              <div 
+                v-for="subject in subjects" 
+                :key="subject.id" 
+                class="col-md-4 col-lg-3"
               >
-                <i class="bi bi-arrow-left"></i>
-                Back
-              </button>
-              <h1 class="text-light mb-0">User Dashboard</h1>
-            </div>
-            <p class="text-secondary">Take quizzes and track your progress</p>
-          </div>
-
-          <!-- Basic Stats -->
-          <div class="row mb-4">
-            <div class="col-md-4 mb-3">
-              <div class="card glass text-center p-3">
-                <h5 class="text-light">Quizzes Taken</h5>
-                <h3 class="text-primary">{{ stats.totalQuizzes }}</h3>
-              </div>
-            </div>
-            <div class="col-md-4 mb-3">
-              <div class="card glass text-center p-3">
-                <h5 class="text-light">Average Score</h5>
-                <h3 class="text-success">{{ stats.averageScore }}%</h3>
-              </div>
-            </div>
-            <div class="col-md-4 mb-3">
-              <div class="card glass text-center p-3">
-                <h5 class="text-light">Best Score</h5>
-                <h3 class="text-warning">{{ stats.bestScore }}%</h3>
-              </div>
-            </div>
-          </div>
-
-          <!-- Available Quizzes -->
-          <div class="card glass mb-4">
-            <div class="card-header bg-transparent">
-              <h5 class="text-light mb-0">Available Quizzes</h5>
-            </div>
-            <div class="card-body">
-              <div class="row">
-                <div class="col-md-6 col-lg-4 mb-3" v-for="quiz in availableQuizzes" :key="quiz.id">
-                  <div class="card glass">
-                    <div class="card-body">
-                      <h6 class="text-light">{{ quiz.title }}</h6>
-                      <p class="text-muted small">{{ quiz.subject }} • {{ quiz.duration }} mins</p>
-                      <p class="text-secondary small">{{ quiz.questions }} questions</p>
-                      <button class="btn btn-primary btn-sm w-100" @click="startQuiz(quiz.id)">
+                <div class="subject-card glass-card">
+                  <div class="card-header">
+                    <h4 class="text-light">{{ subject.name }}</h4>
+                  </div>
+                  <div class="card-body">
+                    <p class="text-muted mb-3">
+                      {{ subject.description || 'No description available' }}
+                    </p>
+                    <div class="d-flex justify-content-between align-items-center">
+                      <small class="text-muted">
+                        <i class="bi bi-calendar me-2"></i>
+                        {{ formatDate(subject.created_at) }}
+                      </small>
+                      <button 
+                        class="btn btn-primary btn-sm"
+                        @click="startQuiz(subject)"
+                      >
                         Start Quiz
+                        <i class="bi bi-arrow-right ms-2"></i>
                       </button>
                     </div>
                   </div>
@@ -68,37 +115,24 @@
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Recent Scores -->
-          <div class="card glass">
-            <div class="card-header bg-transparent">
-              <h5 class="text-light mb-0">Recent Quiz Results</h5>
+        <!-- Recent Scores Section -->
+        <div class="recent-scores glass-card">
+          <div class="card-header">
+            <h3 class="text-light mb-0">
+              <i class="bi bi-trophy me-2"></i>
+              My Recent Scores
+            </h3>
+          </div>
+          <div class="card-body">
+            <div v-if="!recentScores.length" class="text-center text-muted py-5">
+              <i class="bi bi-inbox display-4 mb-3"></i>
+              <p>No recent quiz attempts. Start a quiz to see your scores!</p>
             </div>
-            <div class="card-body">
-              <div class="table-responsive">
-                <table class="table table-dark">
-                  <thead>
-                    <tr>
-                      <th>Quiz</th>
-                      <th>Subject</th>
-                      <th>Date</th>
-                      <th>Score</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="score in recentScores" :key="score.id">
-                      <td>{{ score.quizName }}</td>
-                      <td>{{ score.subject }}</td>
-                      <td>{{ formatDate(score.date) }}</td>
-                      <td>
-                        <span class="badge" :class="getScoreBadgeClass(score.percentage)">
-                          {{ score.percentage }}%
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+            
+            <div v-else class="scores-list">
+              <!-- Implement recent scores list here -->
             </div>
           </div>
         </div>
@@ -108,90 +142,92 @@
 </template>
 
 <script>
-import BaseSidebar from '../components/BaseSidebar.vue'
+import SubjectService from '@/services/subject-service'
+import AuthService from '@/services/auth'
 
 export default {
   name: 'UserDashboardView',
-  components: {
-    BaseSidebar
-  },
   data() {
     return {
-      stats: {
-        totalQuizzes: 12,
-        averageScore: 78,
-        bestScore: 95
-      },
-      availableQuizzes: [
-        {
-          id: 1,
-          title: 'Vue.js Fundamentals',
-          subject: 'Web Development',
-          duration: 30,
-          questions: 15
-        },
-        {
-          id: 2,
-          title: 'JavaScript ES6',
-          subject: 'Programming',
-          duration: 25,
-          questions: 12
-        },
-        {
-          id: 3,
-          title: 'HTML & CSS',
-          subject: 'Web Development',
-          duration: 20,
-          questions: 10
-        },
-        {
-          id: 4,
-          title: 'Database Basics',
-          subject: 'Database',
-          duration: 40,
-          questions: 20
-        }
-      ],
-      recentScores: [
-        {
-          id: 1,
-          quizName: 'Vue.js Basics',
-          subject: 'Web Development',
-          date: '2024-01-15',
-          percentage: 85
-        },
-        {
-          id: 2,
-          quizName: 'JavaScript ES6',
-          subject: 'Programming',
-          date: '2024-01-14',
-          percentage: 92
-        },
-        {
-          id: 3,
-          quizName: 'HTML & CSS',
-          subject: 'Web Development',
-          date: '2024-01-12',
-          percentage: 78
-        }
-      ]
+      username: this.getUsername(),
+      subjects: [],
+      recentScores: [],
+      loading: false,
+      error: null
     }
   },
+  mounted() {
+    this.fetchSubjects()
+  },
   methods: {
-    startQuiz(quizId) {
-      this.$router.push(`/quiz/${quizId}/take`)
+    getUsername() {
+      try {
+        const userString = localStorage.getItem('user')
+        if (userString) {
+          const user = JSON.parse(userString)
+          return user.username || user.email || 'User'
+        }
+        return 'User'
+      } catch (error) {
+        console.error('Error parsing user data:', error)
+        return 'User'
+      }
     },
+
+    async fetchSubjects() {
+      this.loading = true
+      this.error = null
+
+      try {
+        console.log('🔍 Fetching Subjects...')
+        
+        const result = await SubjectService.getAllSubjects()
+        
+        console.log('📊 Subjects Result:', result)
+        
+        if (result.success) {
+          this.subjects = result.data
+          console.log('✅ Subjects fetched:', this.subjects)
+        } else {
+          console.error('❌ Fetch Subjects Error:', result.message)
+          this.error = result.message
+        }
+      } catch (error) {
+        console.error('❌ Failed to fetch subjects:', error)
+        
+        // More detailed error logging
+        if (error.response) {
+          console.error('Response Error Details:', {
+            status: error.response.status,
+            data: error.response.data,
+            headers: error.response.headers
+          })
+        }
+        
+        this.error = 'Failed to retrieve subjects. Check console for details.'
+      } finally {
+        this.loading = false
+      }
+    },
+
+    startQuiz(subject) {
+      // TODO: Implement quiz start logic
+      console.log('Starting quiz for subject:', subject)
+      // this.$router.push(`/quiz/${subject.id}`)
+    },
+
+    logout() {
+      AuthService.logout()
+      this.$router.push('/login')
+    },
+
     formatDate(dateString) {
-      return new Date(dateString).toLocaleDateString()
-    },
-    getScoreBadgeClass(percentage) {
-      if (percentage >= 90) return 'bg-success'
-      if (percentage >= 75) return 'bg-primary'
-      if (percentage >= 60) return 'bg-warning'
-      return 'bg-danger'
-    },
-    goBack() {
-      this.$router.go(-1)
+      if (!dateString) return 'N/A'
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      })
     }
   }
 }
@@ -200,28 +236,79 @@ export default {
 <style scoped>
 .user-dashboard {
   min-height: 100vh;
-  background: linear-gradient(135deg, #181A1B 0%, #23272B 100%);
-  padding-top: 2rem;
+  background: linear-gradient(135deg, 
+    rgba(35, 39, 43, 0.9) 0%, 
+    rgba(22, 33, 62, 0.9) 100%
+  );
 }
 
-.card.glass {
+.sidebar {
+  background: rgba(35, 39, 43, 0.6);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 2rem 0;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
+.nav-link {
+  color: rgba(255, 255, 255, 0.7);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  padding: 0.75rem 1.5rem;
+  border-left: 3px solid transparent;
+}
+
+.nav-link:hover, .nav-link.active {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+  border-left-color: #4a5568;
+}
+
+.nav-link i {
+  margin-right: 0.5rem;
+}
+
+.main-content {
+  padding: 2rem;
+}
+
+.glass-card {
   background: rgba(35, 39, 43, 0.6);
   border-radius: 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 4px 32px 0 rgba(0,0,0,0.25);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
 }
 
-.card-header {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.table-dark {
-  background: transparent;
+.subject-card {
+  transition: all 0.3s ease;
 }
 
-.table-dark td, .table-dark th {
-  border-color: rgba(255, 255, 255, 0.1);
+.subject-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+}
+
+.empty-state {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 1rem;
+  padding: 2rem;
+}
+
+@media (max-width: 768px) {
+  .sidebar {
+    height: auto;
+    position: static;
+  }
 }
 </style> 
