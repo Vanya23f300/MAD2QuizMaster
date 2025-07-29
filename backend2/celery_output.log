@@ -1,0 +1,21 @@
+ 
+ -------------- celery@VANYAs-MacBook-Air.local v5.4.0 (opalescent)
+--- ***** ----- 
+-- ******* ---- macOS-15.5-arm64-arm-64bit 2025-07-28 23:40:18
+- *** --- * --- 
+- ** ---------- [config]
+- ** ---------- .> app:         tasks:0x107c22ee0
+- ** ---------- .> transport:   redis://localhost:6379/0
+- ** ---------- .> results:     redis://localhost:6379/0
+- *** --- * --- .> concurrency: 1 (prefork)
+-- ******* ---- .> task events: OFF (enable -E to monitor tasks in this worker)
+--- ***** ----- 
+ -------------- [queues]
+                .> celery           exchange=celery(direct) key=celery
+                
+
+[tasks]
+  . application.celery_tasks.generate_user_quiz_export
+  . application.celery_tasks.send_daily_reminders
+  . application.celery_tasks.send_monthly_reports
+

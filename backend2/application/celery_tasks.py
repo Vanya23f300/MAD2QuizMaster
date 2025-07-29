@@ -1,342 +1,327 @@
 from celery import Celery
-from application.celery_config import celery
 from application.database import db
-from application.models import Users, Scores, Quizzes, Chapters, Subjects
-from flask import current_app
-from datetime import datetime, timedelta, date
+from application.models import Users, Quizzes, Chapters, Subjects, Scores
+from datetime import datetime, timedelta
+from sqlalchemy import desc, func, and_, or_
+import csv
 import os
 import logging
-import csv
-import io
-import requests
-import json
 
 logger = logging.getLogger(__name__)
 
-@celery.task
-def send_daily_reminders():
+# Configure celery from celery_config.py
+from application.celery_config import celery
+
+@celery.task(bind=True)
+def generate_user_quiz_export(self, user_id, filename):
     """
-    Scheduled Job - Daily reminders to users
-    Check if users haven't visited or new quizzes are created
-    Send reminders via email/webhook
+    Generate CSV export of user's quiz attempts
     """
     try:
-        logger.info("Starting daily reminders task")
+        import os  # Ensure os is imported directly within the task scope
+        import csv  # Ensure csv is also available
+        from flask import Flask
+        from application.config import LocalDevelopmentConfig
         
-        # Get all active users who haven't logged in today
-        today = date.today()
-        users_to_remind = Users.query.filter(
-            Users.is_admin == False,
-            Users.is_active == True,
-            db.or_(
-                Users.last_login.is_(None),
-                db.func.date(Users.last_login) < today
-            )
-        ).all()
+        # Create a Flask app for this task
+        app = Flask(__name__)
+        app.config.from_object(LocalDevelopmentConfig)
         
-        # Get recent quizzes (created in last 7 days)
-        week_ago = today - timedelta(days=7)
-        recent_quizzes = Quizzes.query.filter(
-            Quizzes.created_date >= week_ago
-        ).count()
+        # Explicitly set the database URI if not already set
+        if 'SQLALCHEMY_DATABASE_URI' not in app.config or not app.config['SQLALCHEMY_DATABASE_URI']:
+            # Set the database URI to point to the instance folder
+            BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+            DB_PATH = os.path.join(BASE_DIR, 'instance', 'database.sqlite3')
+            app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
         
-        reminder_count = 0
-        for user in users_to_remind:
+        db.init_app(app)
+    except ImportError as e:
+        logger.error(f"Import error in export task: {str(e)}")
+        return {
+            'status': 'failed',
+            'message': f'Import error: {str(e)}. Please contact support.'
+        }
+    
+    try:
+        logger.info(f"Starting quiz export for user {user_id}")
+        
+        # Use the Flask application context
+        with app.app_context():
+            # Get all quiz attempts by the user with related data
+            scores = db.session.query(Scores, Quizzes, Chapters, Subjects)\
+                .join(Quizzes, Scores.quiz_id == Quizzes.id)\
+                .join(Chapters, Quizzes.chapter_id == Chapters.id)\
+                .join(Subjects, Chapters.subject_id == Subjects.id)\
+                .filter(Scores.user_id == user_id)\
+                .order_by(Scores.time_stamp_of_attempt.desc())\
+                .all()
+            
+            if not scores:
+                logger.warning(f"No quiz attempts found for user {user_id}")
+                return {
+                    'status': 'completed',
+                    'message': 'No quiz attempts found',
+                    'filename': None
+                }
+            
+            # Ensure exports directory exists
+            export_dir = os.path.join('instance', 'exports')
+            os.makedirs(export_dir, exist_ok=True)
             try:
-                # Check if user has any pending quizzes
-                user_subjects = get_user_relevant_subjects(user.id)
-                
-                message = f"""
-                Hi {user.username},
-                
-                You haven't visited the Quiz Master platform recently. 
-                """
-                
-                if recent_quizzes > 0:
-                    message += f"\nWe have {recent_quizzes} new quiz(es) that might interest you!"
-                
-                message += f"""
-                
-                Visit now to attempt quizzes and improve your knowledge!
-                
-                Best regards,
-                Quiz Master Team
-                """
-                
-                # Send reminder (email or webhook)
-                success = send_reminder_notification(user, message)
-                if success:
-                    reminder_count += 1
-                    
-            except Exception as e:
-                logger.error(f"Failed to send reminder to user {user.email}: {str(e)}")
-                continue
-        
-        logger.info(f"Daily reminders sent to {reminder_count} users")
-        return {
-            'status': 'completed',
-            'reminders_sent': reminder_count,
-            'total_users_checked': len(users_to_remind)
-        }
-        
-    except Exception as e:
-        logger.error(f"Daily reminders task failed: {str(e)}")
-        return {'status': 'failed', 'error': str(e)}
+                os.chmod(export_dir, 0o777)  # Make sure directory is writable
+            except:
+                pass  # Ignore permission errors, just try to create
 
-@celery.task
-def send_monthly_activity_reports():
-    """
-    Scheduled Job - Monthly Activity Report
-    Generate and send monthly reports to users via email
-    """
-    try:
-        logger.info("Starting monthly activity reports task")
-        
-        # Get previous month date range
-        today = date.today()
-        first_day_current_month = today.replace(day=1)
-        last_day_prev_month = first_day_current_month - timedelta(days=1)
-        first_day_prev_month = last_day_prev_month.replace(day=1)
-        
-        # Get all active users
-        active_users = Users.query.filter(
-            Users.is_admin == False,
-            Users.is_active == True
-        ).all()
-        
-        reports_sent = 0
-        for user in active_users:
-            try:
-                # Generate user's monthly report
-                report_data = generate_monthly_report(user.id, first_day_prev_month, last_day_prev_month)
-                
-                if report_data['quizzes_taken'] > 0:
-                    # Send report via email
-                    success = send_monthly_report_email(user, report_data, last_day_prev_month.strftime('%B %Y'))
-                    if success:
-                        reports_sent += 1
-                        
-            except Exception as e:
-                logger.error(f"Failed to send monthly report to user {user.email}: {str(e)}")
-                continue
-        
-        logger.info(f"Monthly reports sent to {reports_sent} users")
-        return {
-            'status': 'completed',
-            'reports_sent': reports_sent,
-            'total_users_checked': len(active_users),
-            'month': last_day_prev_month.strftime('%B %Y')
-        }
-        
-    except Exception as e:
-        logger.error(f"Monthly reports task failed: {str(e)}")
-        return {'status': 'failed', 'error': str(e)}
-
-@celery.task
-def generate_user_csv_export(user_id, export_type='quiz_details'):
-    """
-    User Triggered Async Job - Generate CSV export
-    This makes CSV export asynchronous for better user experience
-    """
-    try:
-        logger.info(f"Starting CSV export for user {user_id}, type: {export_type}")
-        
-        user = Users.query.get(user_id)
-        if not user:
-            return {'status': 'failed', 'error': 'User not found'}
-        
-        if export_type == 'quiz_details':
-            file_path = generate_quiz_details_csv(user)
-        else:
-            return {'status': 'failed', 'error': 'Invalid export type'}
-        
-        # Optionally, send notification to user that export is ready
-        send_export_ready_notification(user, file_path)
-        
-        return {
-            'status': 'completed',
-            'file_path': file_path,
-            'user_id': user_id,
-            'export_type': export_type
-        }
-        
-    except Exception as e:
-        logger.error(f"CSV export task failed for user {user_id}: {str(e)}")
-        return {'status': 'failed', 'error': str(e)}
-
-@celery.task
-def cleanup_old_export_files():
-    """
-    Cleanup old export files to save disk space
-    """
-    try:
-        logger.info("Starting cleanup of old export files")
-        
-        # Define export directory (you might want to create this)
-        export_dir = os.path.join(os.getcwd(), 'exports')
-        if not os.path.exists(export_dir):
-            os.makedirs(export_dir)
-        
-        # Delete files older than 7 days
-        cutoff_date = datetime.now() - timedelta(days=7)
-        deleted_count = 0
-        
-        for filename in os.listdir(export_dir):
+            # Create CSV file
             file_path = os.path.join(export_dir, filename)
-            if os.path.isfile(file_path):
-                file_modified = datetime.fromtimestamp(os.path.getmtime(file_path))
-                if file_modified < cutoff_date:
-                    os.remove(file_path)
-                    deleted_count += 1
-        
-        logger.info(f"Cleaned up {deleted_count} old export files")
+            with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                
+                # Write headers
+                writer.writerow([
+                    'Quiz ID',
+                    'Quiz Name',
+                    'Chapter ID',
+                    'Chapter Name',
+                    'Subject ID',
+                    'Subject Name',
+                    'Date of Quiz',
+                    'Attempt Date',
+                    'Score',
+                    'Total Score',
+                    'Percentage',
+                    'Passed',
+                    'Time Taken (minutes)',
+                    'Time Taken (seconds)',
+                    'Remarks'
+                ])
+                
+                # Write data rows
+                total_rows = len(scores)
+                for idx, (score, quiz, chapter, subject) in enumerate(scores, 1):
+                    writer.writerow([
+                        quiz.id,
+                        quiz.name,
+                        chapter.id,
+                        chapter.name,
+                        subject.id,
+                        subject.name,
+                        quiz.date_of_quiz.strftime('%Y-%m-%d') if quiz.date_of_quiz else 'N/A',
+                        score.time_stamp_of_attempt.strftime('%Y-%m-%d %H:%M:%S'),
+                        score.total_scored,
+                        score.total_possible_score,
+                        f"{score.percentage:.2f}%",
+                        'Yes' if score.passed else 'No',
+                        f"{score.time_taken / 60:.1f}" if score.time_taken else '0.0',
+                        score.time_taken if score.time_taken else 0,
+                        quiz.remarks or ''
+                    ])
+                    
+                    # Update progress
+                    self.update_state(
+                        state='PROGRESS',
+                        meta={
+                            'current': idx,
+                            'total': total_rows,
+                            'status': f'Processing row {idx} of {total_rows}'
+                        }
+                    )
+            
+        logger.info(f"Export completed successfully for user {user_id}")
+            
         return {
             'status': 'completed',
-            'files_deleted': deleted_count
+            'message': 'Export completed successfully',
+            'filename': filename
         }
         
     except Exception as e:
-        logger.error(f"Cleanup task failed: {str(e)}")
-        return {'status': 'failed', 'error': str(e)}
+        logger.error(f"Export failed for user {user_id}: {str(e)}")
+        raise
 
-# Helper functions
-def get_user_relevant_subjects(user_id):
-    """Get subjects relevant to user based on their quiz history"""
-    return db.session.query(Subjects).join(Chapters).join(Quizzes).join(Scores).filter(
-        Scores.user_id == user_id
-    ).distinct().all()
-
-def send_reminder_notification(user, message):
-    """Send reminder notification via webhook or console log"""
+@celery.task(bind=True)
+def send_daily_reminders(self):
+    """
+    Send daily reminders to users who haven't logged in recently
+    """
     try:
-        # For development, just log the message
-        # In production, you can implement email/webhook sending
-        logger.info(f"Reminder for {user.email}: {message}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send reminder notification: {str(e)}")
-        return False
-
-def generate_monthly_report(user_id, start_date, end_date):
-    """Generate monthly activity report data for a user"""
-    try:
-        # Get quiz attempts in the date range
-        scores = Scores.query.filter(
-            Scores.user_id == user_id,
-            Scores.time_stamp_of_attempt >= start_date,
-            Scores.time_stamp_of_attempt <= end_date + timedelta(days=1)
-        ).all()
+        from flask import Flask
+        from application.config import LocalDevelopmentConfig
+        from application.simple_email import send_daily_reminder
         
-        if not scores:
+        # Create a Flask app for this task
+        app = Flask(__name__)
+        app.config.from_object(LocalDevelopmentConfig)
+        
+        # Explicitly set the database URI
+        BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+        DB_PATH = os.path.join(BASE_DIR, 'instance', 'database.sqlite3')
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
+        
+        db.init_app(app)
+        
+        with app.app_context():
+            # Define what "inactive" means - users who haven't logged in for more than 2 days
+            cutoff_date = datetime.utcnow() - timedelta(days=2)
+            
+            # Find inactive users
+            inactive_users = Users.query.filter(
+                Users.is_active == True,
+                or_(
+                    Users.last_login == None,
+                    Users.last_login < cutoff_date
+                )
+            ).all()
+            
+            logger.info(f"Found {len(inactive_users)} inactive users to send reminders to")
+            
+            # Get available quizzes (active quizzes created in the last 7 days)
+            recent_cutoff = datetime.utcnow() - timedelta(days=7)
+            recent_quizzes = db.session.query(
+                Quizzes, Chapters, Subjects
+            ).join(
+                Chapters, Quizzes.chapter_id == Chapters.id
+            ).join(
+                Subjects, Chapters.subject_id == Subjects.id
+            ).filter(
+                Quizzes.is_active == True
+            ).all()
+            
+            available_quizzes = [
+                {
+                    'id': quiz.id,
+                    'name': quiz.name,
+                    'subject': subject.name,
+                    'chapter': chapter.name
+                }
+                for quiz, chapter, subject in recent_quizzes
+            ]
+            
+            # Send emails to each inactive user
+            success_count = 0
+            for user in inactive_users:
+                try:
+                    # Send reminder email
+                    result = send_daily_reminder(
+                        user_email=user.email,
+                        user_name=user.username,
+                        available_quizzes=available_quizzes
+                    )
+                    
+                    if result:
+                        success_count += 1
+                        logger.info(f"Successfully sent reminder to {user.email}")
+                    else:
+                        logger.warning(f"Failed to send reminder to {user.email}")
+                        
+                    # Optional: Update last reminder sent
+                    if hasattr(user, 'last_reminder_sent'):
+                        user.last_reminder_sent = datetime.utcnow()
+                        db.session.commit()
+                        
+                except Exception as e:
+                    logger.error(f"Error sending reminder to {user.email}: {str(e)}")
+            
             return {
-                'quizzes_taken': 0,
-                'average_score': 0,
-                'best_score': 0,
-                'total_time_spent': 0,
-                'subjects_covered': 0
+                'status': 'completed',
+                'message': f'Daily reminders sent to {success_count} of {len(inactive_users)} users',
+                'timestamp': datetime.utcnow().isoformat()
             }
-        
-        # Calculate statistics
-        total_score = sum(score.percentage for score in scores if score.percentage)
-        average_score = total_score / len(scores) if scores else 0
-        best_score = max((score.percentage for score in scores if score.percentage), default=0)
-        total_time = sum(score.time_taken for score in scores if score.time_taken)
-        
-        # Get unique subjects
-        subject_ids = set()
-        for score in scores:
-            quiz = Quizzes.query.get(score.quiz_id)
-            if quiz:
-                chapter = Chapters.query.get(quiz.chapter_id)
-                if chapter:
-                    subject_ids.add(chapter.subject_id)
-        
-        return {
-            'quizzes_taken': len(scores),
-            'average_score': round(average_score, 2),
-            'best_score': round(best_score, 2),
-            'total_time_spent': total_time or 0,
-            'subjects_covered': len(subject_ids)
-        }
-        
+    
     except Exception as e:
-        logger.error(f"Failed to generate monthly report for user {user_id}: {str(e)}")
-        return {'quizzes_taken': 0}
+        logger.error(f"Failed to send daily reminders: {str(e)}")
+        raise
 
-def send_monthly_report_email(user, report_data, month_name):
-    """Send monthly activity report via log (for development)"""
+@celery.task(bind=True)
+def send_monthly_reports(self):
+    """
+    Send monthly activity reports to all users
+    """
     try:
-        message = f"""
-        Monthly Report for {user.username} - {month_name}:
-        Quizzes Taken: {report_data['quizzes_taken']}
-        Average Score: {report_data['average_score']:.1f}%
-        Best Score: {report_data['best_score']:.1f}%
-        Subjects Covered: {report_data['subjects_covered']}
-        """
+        from flask import Flask
+        from application.config import LocalDevelopmentConfig
+        from application.simple_email import send_monthly_report
         
-        logger.info(f"Monthly report for {user.email}: {message}")
-        return True
+        # Create a Flask app for this task
+        app = Flask(__name__)
+        app.config.from_object(LocalDevelopmentConfig)
         
-    except Exception as e:
-        logger.error(f"Failed to send monthly report email: {str(e)}")
-        return False
-
-def generate_quiz_details_csv(user):
-    """Generate CSV file for user's quiz details"""
-    try:
-        # Create exports directory
-        export_dir = os.path.join(os.getcwd(), 'exports')
-        os.makedirs(export_dir, exist_ok=True)
+        # Explicitly set the database URI
+        BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
+        DB_PATH = os.path.join(BASE_DIR, 'instance', 'database.sqlite3')
+        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
         
-        # Generate filename
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"quiz_details_{user.username}_{timestamp}.csv"
-        file_path = os.path.join(export_dir, filename)
+        db.init_app(app)
         
-        # Get user's quiz data
-        scores = db.session.query(Scores, Quizzes, Chapters, Subjects)\
-            .join(Quizzes, Scores.quiz_id == Quizzes.id)\
-            .join(Chapters, Quizzes.chapter_id == Chapters.id)\
-            .join(Subjects, Chapters.subject_id == Subjects.id)\
-            .filter(Scores.user_id == user.id)\
-            .order_by(Scores.time_stamp_of_attempt.desc())\
-            .all()
-        
-        # Write CSV
-        with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.writer(csvfile)
+        with app.app_context():
+            # Calculate the previous month's date range
+            today = datetime.utcnow()
+            first_day_of_current_month = datetime(today.year, today.month, 1)
+            last_day_of_previous_month = first_day_of_current_month - timedelta(days=1)
+            first_day_of_previous_month = datetime(last_day_of_previous_month.year, last_day_of_previous_month.month, 1)
             
-            # Headers
-            writer.writerow([
-                'Quiz ID', 'Quiz Name', 'Chapter', 'Subject',
-                'Date Attempted', 'Score', 'Percentage', 'Passed'
-            ])
+            previous_month_name = first_day_of_previous_month.strftime('%B')
+            previous_month_year = first_day_of_previous_month.year
             
-            # Data rows
-            for score, quiz, chapter, subject in scores:
-                writer.writerow([
-                    quiz.id,
-                    quiz.name,
-                    chapter.name,
-                    subject.name,
-                    score.time_stamp_of_attempt.strftime('%Y-%m-%d %H:%M'),
-                    f"{score.total_scored}/{score.total_possible_score}",
-                    f"{score.percentage:.1f}%",
-                    'Yes' if score.passed else 'No'
-                ])
-        
-        return file_path
-        
+            logger.info(f"Generating monthly reports for {previous_month_name} {previous_month_year}")
+            
+            # Get all active users
+            active_users = Users.query.filter_by(is_active=True).all()
+            
+            # Generate and send reports for each user
+            success_count = 0
+            for user in active_users:
+                try:
+                    # Get quiz attempts for the previous month
+                    user_scores = db.session.query(Scores).filter(
+                        Scores.user_id == user.id,
+                        Scores.time_stamp_of_attempt >= first_day_of_previous_month,
+                        Scores.time_stamp_of_attempt < first_day_of_current_month
+                    ).all()
+                    
+                    # Calculate statistics
+                    total_quizzes = len(user_scores)
+                    
+                    if total_quizzes > 0:
+                        average_score = sum(score.percentage for score in user_scores) / total_quizzes
+                        best_score = max((score.percentage for score in user_scores), default=0)
+                    else:
+                        average_score = 0
+                        best_score = 0
+                    
+                    # Prepare report data
+                    report_data = {
+                        'month': previous_month_name,
+                        'year': previous_month_year,
+                        'total_quizzes': total_quizzes,
+                        'average_score': average_score,
+                        'best_score': best_score
+                    }
+                    
+                    # Send monthly report email
+                    result = send_monthly_report(
+                        user_email=user.email,
+                        user_name=user.username,
+                        report_data=report_data
+                    )
+                    
+                    if result:
+                        success_count += 1
+                        logger.info(f"Successfully sent monthly report to {user.email}")
+                    else:
+                        logger.warning(f"Failed to send monthly report to {user.email}")
+                
+                except Exception as e:
+                    logger.error(f"Error generating monthly report for {user.email}: {str(e)}")
+            
+            return {
+                'status': 'completed',
+                'message': f'Monthly reports sent to {success_count} of {len(active_users)} users',
+                'month': previous_month_name,
+                'year': previous_month_year,
+                'timestamp': datetime.utcnow().isoformat()
+            }
+    
     except Exception as e:
-        logger.error(f"Failed to generate CSV for user {user.email}: {str(e)}")
-        return None
-
-def send_export_ready_notification(user, file_path):
-    """Send notification when export is ready (via log for development)"""
-    try:
-        filename = os.path.basename(file_path)
-        logger.info(f"Export ready for {user.email}: {filename}")
-        return True
-    except Exception as e:
-        logger.error(f"Failed to send export notification: {str(e)}")
-        return False
+        logger.error(f"Failed to send monthly reports: {str(e)}")
+        raise

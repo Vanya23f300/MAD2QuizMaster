@@ -47,6 +47,8 @@ def create_quiz_routes(app):
                     quiz_data['chapter_name'] = quiz.chapter.name
                     if quiz.chapter.subject:
                         quiz_data['subject_name'] = quiz.chapter.subject.name
+                # Add questions count
+                quiz_data['questions_count'] = len(quiz.questions)
                 quiz_list.append(quiz_data)
             
             return jsonify(quiz_list), 200
@@ -244,18 +246,27 @@ def create_quiz_routes(app):
         """Start a quiz attempt"""
         try:
             current_user_id = get_jwt_identity()
+            
+            print(f"🚀 Starting quiz attempt - User: {current_user_id}, Quiz ID: {quiz_id}")
+            
             quiz = Quizzes.query.get_or_404(quiz_id)
+            
+            print(f"📝 Found quiz: {quiz.name} (ID: {quiz.id})")
             
             # Check if quiz is active
             if not quiz.is_active:
+                print(f"❌ Quiz {quiz_id} is not active")
                 return jsonify({'message': 'Quiz is not available'}), 400
             
             # Check if quiz has questions
             if not quiz.questions:
+                print(f"❌ Quiz {quiz_id} has no questions")
                 return jsonify({'message': 'Quiz has no questions'}), 400
             
             # Get questions for the quiz (without correct answers)
             questions = Questions.query.filter_by(quiz_id=quiz_id).all()
+            print(f"📊 Found {len(questions)} questions for quiz {quiz_id}")
+            
             questions_data = []
             for question in questions:
                 q_data = question.serialize()
@@ -266,9 +277,21 @@ def create_quiz_routes(app):
             quiz_data['questions'] = questions_data
             quiz_data['start_time'] = datetime.utcnow().isoformat()
             
+            # Add chapter and subject information for verification
+            if quiz.chapter:
+                quiz_data['chapter_name'] = quiz.chapter.name
+                if quiz.chapter.subject:
+                    quiz_data['subject_name'] = quiz.chapter.subject.name
+            
+            print(f"✅ Successfully prepared quiz data for: {quiz.name}")
+            print(f"   Chapter: {quiz_data.get('chapter_name', 'N/A')}")
+            print(f"   Subject: {quiz_data.get('subject_name', 'N/A')}")
+            print(f"   Questions: {len(questions_data)}")
+            
             return jsonify(quiz_data), 200
             
         except Exception as e:
+            print(f"❌ Error starting quiz {quiz_id}: {str(e)}")
             return jsonify({'error': str(e)}), 500
 
     @app.route('/api/quizzes/<int:quiz_id>/submit', methods=['POST'])
@@ -307,17 +330,34 @@ def create_quiz_routes(app):
             total_scored = 0
             total_possible_score = 0
             correct_answers = 0
+            incorrect_answers = 0
+            unanswered = 0
             
             for question in questions:
-                total_possible_score += question.marks
+                question_score = question.marks if hasattr(question, 'marks') and question.marks else 1
+                total_possible_score += question_score
+                
                 user_answer = answers.get(str(question.id))
                 
-                if user_answer and int(user_answer) == question.correct_option:
-                    total_scored += question.marks
-                    correct_answers += 1
+                # Convert user answer to int for comparison if it exists
+                if user_answer is not None:
+                    try:
+                        user_answer = int(user_answer)
+                        # Compare with correct_option (1-based index)
+                        if user_answer == question.correct_option:
+                            total_scored += question_score
+                            correct_answers += 1
+                        else:
+                            incorrect_answers += 1
+                    except (ValueError, TypeError):
+                        # If answer can't be converted to int, count as incorrect
+                        incorrect_answers += 1
+                else:
+                    unanswered += 1
             
-            # Calculate percentage
-            percentage = (total_scored / total_possible_score * 100) if total_possible_score > 0 else 0
+            # Calculate percentage based on correct answers / total questions
+            total_questions = len(questions)
+            percentage = (correct_answers / total_questions * 100) if total_questions > 0 else 0
             passed = percentage >= quiz.passing_score
             
             # Save score
@@ -335,13 +375,20 @@ def create_quiz_routes(app):
             db.session.add(score)
             db.session.commit()
             
+            # Return the answers for verification
+            question_answers = {str(q.id): q.correct_option for q in questions}
+            
             return jsonify({
                 'message': 'Quiz submitted successfully',
                 'score': score.serialize(),
                 'correct_answers': correct_answers,
-                'total_questions': len(questions),
+                'incorrect_answers': incorrect_answers,
+                'unanswered': unanswered,
+                'total_questions': total_questions,
                 'percentage': percentage,
-                'passed': passed
+                'passed': passed,
+                'time_taken': time_taken,
+                'question_answers': question_answers  # Add this for debugging
             }), 200
             
         except Exception as e:
@@ -378,6 +425,40 @@ def create_quiz_routes(app):
                 attempts_data.append(attempt_data)
             
             return jsonify(attempts_data), 200
+            
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+    @app.route('/api/quizzes/unattempted', methods=['GET'])
+    @jwt_required()
+    def get_unattempted_quizzes():
+        """Get quizzes that the user hasn't attempted yet"""
+        try:
+            current_user_id = get_jwt_identity()
+            
+            # Get all active quizzes
+            active_quizzes = Quizzes.query.filter_by(is_active=True).all()
+            
+            if not active_quizzes:
+                return jsonify([]), 200
+            
+            # Get quizzes that user has already attempted
+            attempted_quiz_ids = db.session.query(Scores.quiz_id).filter_by(user_id=current_user_id).distinct().all()
+            attempted_quiz_ids = [quiz_id for (quiz_id,) in attempted_quiz_ids]
+            
+            # Filter out attempted quizzes
+            unattempted_quizzes = []
+            for quiz in active_quizzes:
+                if quiz.id not in attempted_quiz_ids:
+                    quiz_data = quiz.serialize()
+                    # Add chapter and subject information
+                    if quiz.chapter:
+                        quiz_data['chapter_name'] = quiz.chapter.name
+                        if quiz.chapter.subject:
+                            quiz_data['subject_name'] = quiz.chapter.subject.name
+                    unattempted_quizzes.append(quiz_data)
+            
+            return jsonify(unattempted_quizzes), 200
             
         except Exception as e:
             return jsonify({'error': str(e)}), 500

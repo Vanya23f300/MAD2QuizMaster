@@ -1,57 +1,49 @@
+import os
 from celery import Celery
 from celery.schedules import crontab
-from application.config import LocalDevelopmentConfig
-import os
 
-def make_celery(app_name=__name__):
-    """Create and configure Celery instance"""
-    
-    # Redis broker URL (fallback to in-memory for development if Redis not available)
-    broker_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-    result_backend = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-    
-    celery = Celery(
-        app_name,
-        broker=broker_url,
-        backend=result_backend,
-        include=['application.celery_tasks']
-    )
-    
-    # Celery configuration
-    celery.conf.update(
-        # Task settings
-        task_serializer='json',
-        accept_content=['json'],
-        result_serializer='json',
-        timezone='UTC',
-        enable_utc=True,
-        
-        # Worker settings
-        worker_prefetch_multiplier=1,
-        task_acks_late=True,
-        worker_max_tasks_per_child=50,
-        
-        # Scheduled tasks (Celery Beat)
-        beat_schedule={
-            # Daily reminder task - runs every day at 6 PM
-            'send-daily-reminders': {
-                'task': 'application.celery_tasks.send_daily_reminders',
-                'schedule': crontab(hour=18, minute=0),  # 6:00 PM daily
-            },
-            # Monthly activity report - runs on 1st of every month at 9 AM
-            'send-monthly-reports': {
-                'task': 'application.celery_tasks.send_monthly_activity_reports',
-                'schedule': crontab(hour=9, minute=0, day_of_month=1),  # 1st day of month at 9 AM
-            },
-            # Cleanup old exports - runs weekly on Sunday at 2 AM
-            'cleanup-old-exports': {
-                'task': 'application.celery_tasks.cleanup_old_export_files',
-                'schedule': crontab(hour=2, minute=0, day_of_week=0),  # Sunday at 2 AM
-            },
-        },
-    )
-    
-    return celery
+# Create Celery app
+celery = Celery('tasks')
 
-# Create global celery instance
-celery = make_celery()
+# Import task modules
+celery.conf.imports = [
+    'application.celery_tasks',
+]
+
+# Configure Celery to use Redis as broker
+redis_host = os.environ.get('REDIS_HOST', 'localhost')
+redis_port = os.environ.get('REDIS_PORT', '6379')
+redis_url = f"redis://{redis_host}:{redis_port}/0"
+
+celery.conf.broker_url = redis_url
+celery.conf.result_backend = redis_url
+
+# Set timezone for scheduled tasks
+celery.conf.timezone = 'UTC'
+
+# Configure scheduled tasks
+celery.conf.beat_schedule = {
+    # Daily reminders at 6 PM every day
+    'daily-reminders': {
+        'task': 'application.celery_tasks.send_daily_reminders',
+        'schedule': crontab(hour=18, minute=0),  # 6 PM daily
+    },
+    
+    # Monthly reports on 1st of every month at 9 AM
+    'monthly-reports': {
+        'task': 'application.celery_tasks.send_monthly_reports',
+        'schedule': crontab(day_of_month=1, hour=9, minute=0),  # 1st of month, 9 AM
+    }
+}
+
+# Optional: Task routing configuration
+celery.conf.task_routes = {
+    'application.celery_tasks.generate_user_quiz_export': {'queue': 'exports'},
+    'application.celery_tasks.send_daily_reminders': {'queue': 'notifications'},
+    'application.celery_tasks.send_monthly_reports': {'queue': 'reports'},
+}
+
+# Optional: Task serialization format
+celery.conf.accept_content = ['json']
+celery.conf.task_serializer = 'json'
+celery.conf.result_serializer = 'json'

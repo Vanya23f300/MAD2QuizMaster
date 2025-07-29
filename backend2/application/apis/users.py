@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timedelta
 import traceback
 import json
+from application.models import Scores, Quizzes
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -144,7 +145,7 @@ def register_user_routes(app):
                 'error': str(e)
             }), 500
 
-    @app.route('/signup', methods=['POST'])
+    @app.route('/api/signup', methods=['POST'])
     def signup():
         """
         User Registration Endpoint
@@ -539,5 +540,218 @@ def register_user_routes(app):
             logger.error(f"Error creating user: {str(e)}")
             return jsonify({
                 'message': 'Failed to create user',
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/user/profile', methods=['GET', 'PUT'])
+    @jwt_required()
+    def user_profile():
+        """
+        Get or update current user's profile
+        """
+        try:
+            # Get current user's email from JWT
+            current_user_email = get_jwt_identity()
+            user = Users.query.filter_by(email=current_user_email).first()
+            
+            if not user:
+                return jsonify({
+                    'message': 'User not found',
+                    'error': 'USER_NOT_FOUND'
+                }), 404
+
+            if request.method == 'GET':
+                return jsonify({
+                    'id': user.id,
+                    'username': user.email,
+                    'full_name': user.username,
+                    'created_at': user.registration_date.isoformat() if user.registration_date else None,
+                    'updated_at': user.last_login.isoformat() if user.last_login else None
+                }), 200
+            
+            elif request.method == 'PUT':
+                data = request.get_json()
+                
+                # Verify current password
+                if not data.get('current_password'):
+                    return jsonify({
+                        'message': 'Current password is required',
+                        'errors': {'current_password': 'Current password is required'}
+                    }), 400
+                
+                if not bcrypt.check_password_hash(user.password, data['current_password']):
+                    return jsonify({
+                        'message': 'Current password is incorrect',
+                        'errors': {'current_password': 'Current password is incorrect'}
+                    }), 400
+                
+                # Update fields
+                if 'full_name' in data:
+                    user.username = data['full_name']
+                
+                db.session.commit()
+                
+                return jsonify({
+                    'message': 'Profile updated successfully',
+                    'user': {
+                        'id': user.id,
+                        'username': user.email,
+                        'full_name': user.username,
+                        'created_at': user.registration_date.isoformat() if user.registration_date else None,
+                        'updated_at': user.last_login.isoformat() if user.last_login else None
+                    }
+                }), 200
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error handling user profile: {str(e)}")
+            return jsonify({
+                'message': 'Failed to handle profile request',
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/user/change-password', methods=['POST'])
+    @jwt_required()
+    def change_password():
+        """
+        Change user's password
+        """
+        try:
+            # Get current user
+            user_id = get_jwt_identity()
+            user = Users.query.get_or_404(user_id)
+            
+            data = request.get_json()
+            
+            # Validate input
+            if not all(k in data for k in ['old_password', 'new_password', 'confirm_password']):
+                return jsonify({
+                    'message': 'Missing required fields',
+                    'errors': {
+                        'old_password': 'Current password is required',
+                        'new_password': 'New password is required',
+                        'confirm_password': 'Password confirmation is required'
+                    }
+                }), 400
+            
+            # Verify current password
+            if not bcrypt.check_password_hash(user.password, data['old_password']):
+                return jsonify({
+                    'message': 'Current password is incorrect',
+                    'errors': {'old_password': 'Current password is incorrect'}
+                }), 400
+            
+            # Validate new password
+            if len(data['new_password']) < 6:
+                return jsonify({
+                    'message': 'Password is too short',
+                    'errors': {'new_password': 'Password must be at least 6 characters'}
+                }), 400
+            
+            if data['new_password'] != data['confirm_password']:
+                return jsonify({
+                    'message': 'Passwords do not match',
+                    'errors': {'confirm_password': 'Passwords do not match'}
+                }), 400
+            
+            # Update password
+            user.password = bcrypt.generate_password_hash(data['new_password']).decode('utf-8')
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'Password changed successfully'
+            }), 200
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error changing password: {str(e)}")
+            return jsonify({
+                'message': 'Failed to change password',
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/user/statistics', methods=['GET'])
+    @jwt_required()
+    def get_user_statistics():
+        """
+        Get user's quiz statistics
+        """
+        try:
+            # Get current user
+            user_id = get_jwt_identity()
+            
+            # Get all scores for the user
+            scores = Scores.query.filter_by(user_id=user_id).all()
+            
+            # Calculate statistics
+            total_attempts = len(scores)
+            if total_attempts > 0:
+                total_score = sum(score.percentage for score in scores)
+                average_score = round(total_score / total_attempts, 1)
+                best_score = max(score.percentage for score in scores)
+                
+                # Get unique subjects attempted
+                subject_ids = set()
+                for score in scores:
+                    quiz = Quizzes.query.get(score.quiz_id)
+                    if quiz and quiz.chapter:
+                        subject_ids.add(quiz.chapter.subject_id)
+                
+                subjects_attempted = len(subject_ids)
+            else:
+                average_score = 0
+                best_score = 0
+                subjects_attempted = 0
+            
+            return jsonify({
+                'totalAttempts': total_attempts,
+                'averageScore': average_score,
+                'bestScore': best_score,
+                'subjectsAttempted': subjects_attempted
+            }), 200
+            
+        except Exception as e:
+            logger.error(f"Error fetching user statistics: {str(e)}")
+            return jsonify({
+                'message': 'Failed to retrieve statistics',
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/user/activity', methods=['GET'])
+    @jwt_required()
+    def get_user_activity():
+        """
+        Get user's recent activity
+        """
+        try:
+            # Get current user
+            user_id = get_jwt_identity()
+            
+            # Get limit parameter (default 5)
+            limit = min(int(request.args.get('limit', 5)), 20)  # Max 20 activities
+            
+            # Get recent quiz attempts
+            recent_scores = Scores.query.filter_by(user_id=user_id)\
+                .order_by(Scores.time_stamp_of_attempt.desc())\
+                .limit(limit)\
+                .all()
+            
+            activities = []
+            for score in recent_scores:
+                quiz = Quizzes.query.get(score.quiz_id)
+                if quiz:
+                    activity = {
+                        'id': score.id,
+                        'description': f"Completed {quiz.name} - {score.percentage}%",
+                        'date': score.time_stamp_of_attempt.isoformat()
+                    }
+                    activities.append(activity)
+            
+            return jsonify(activities), 200
+            
+        except Exception as e:
+            logger.error(f"Error fetching user activity: {str(e)}")
+            return jsonify({
+                'message': 'Failed to retrieve activity',
                 'error': str(e)
             }), 500

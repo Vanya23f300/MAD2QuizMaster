@@ -1,7 +1,7 @@
 from .database import db
 from datetime import datetime
 from sqlalchemy.orm import relationship
-from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime, ForeignKey, Float, Text
+from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime, ForeignKey, Float, Text, JSON, Time
 import re
 
 class Users(db.Model):
@@ -16,10 +16,12 @@ class Users(db.Model):
     last_login = db.Column(db.DateTime, nullable=True)
     is_active = db.Column(db.Boolean, default=True)
     registration_date = db.Column(db.DateTime, default=datetime.utcnow)
+    last_reminder_sent = db.Column(db.DateTime, nullable=True)
 
     # Relationships
     subjects = relationship("Subjects", back_populates="created_by_user")
     scores = relationship("Scores", back_populates="user")
+    preferences = relationship("UserPreferences", back_populates="user", uselist=False, cascade="all, delete-orphan")
 
     @classmethod
     def create_admin(cls, email='admin@quizmaster.com', username='QuizMaster', password=None):
@@ -93,11 +95,105 @@ class Users(db.Model):
             'is_admin': self.is_admin,
             'last_login': str(self.last_login) if self.last_login else None,
             'is_active': self.is_active,
-            'registration_date': str(self.registration_date)
+            'registration_date': str(self.registration_date),
+            'last_reminder_sent': str(self.last_reminder_sent) if self.last_reminder_sent else None
         }
 
     def __repr__(self):
         return f'<User {self.username}>'
+
+class UserPreferences(db.Model):
+    __tablename__ = "UserPreferences"
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('Users.id'), nullable=False, unique=True)
+    # Notification preferences
+    daily_reminders = db.Column(db.Boolean, default=True)
+    reminder_time = db.Column(db.Time, nullable=True)  # No default - user must choose
+    quiz_notifications = db.Column(db.Boolean, default=True)
+    monthly_reports = db.Column(db.Boolean, default=True)
+    export_notifications = db.Column(db.Boolean, default=True)
+    # Display preferences
+    theme = db.Column(db.String, default='dark')
+    dashboard_layout = db.Column(db.String, default='comfortable')
+    show_performance_trends = db.Column(db.Boolean, default=True)
+    # Quiz preferences
+    auto_save = db.Column(db.Boolean, default=True)
+    show_timer = db.Column(db.Boolean, default=True)
+    confirm_before_submit = db.Column(db.Boolean, default=True)
+    review_mode = db.Column(db.String, default='immediate')
+    # Export preferences
+    default_export_format = db.Column(db.String, default='csv')
+    include_personal_data = db.Column(db.Boolean, default=False)
+    auto_delete_days = db.Column(db.String, default='14')
+    # Notification channels
+    gchat_webhook_url = db.Column(db.String, nullable=True)
+    sms_number = db.Column(db.String, nullable=True)
+    email_notifications = db.Column(db.Boolean, default=True)
+    # Last notification sent
+    last_reminder_sent = db.Column(db.DateTime, nullable=True)
+    
+    # Relationships
+    user = relationship("Users", back_populates="preferences")
+
+    def serialize(self):
+        return {
+            'notifications': {
+                'dailyReminders': self.daily_reminders,
+                'reminderTime': self.reminder_time.strftime('%H:%M') if self.reminder_time else None,
+                'quizNotifications': self.quiz_notifications,
+                'monthlyReports': self.monthly_reports,
+                'exportNotifications': self.export_notifications
+            },
+            'display': {
+                'theme': self.theme,
+                'dashboardLayout': self.dashboard_layout,
+                'showPerformanceTrends': self.show_performance_trends
+            },
+            'quiz': {
+                'autoSave': self.auto_save,
+                'showTimer': self.show_timer,
+                'confirmBeforeSubmit': self.confirm_before_submit,
+                'reviewMode': self.review_mode
+            },
+            'export': {
+                'defaultFormat': self.default_export_format,
+                'includePersonalData': self.include_personal_data,
+                'autoDeleteDays': self.auto_delete_days
+            },
+            'notificationChannels': {
+                'gchatWebhookUrl': self.gchat_webhook_url,
+                'smsNumber': self.sms_number,
+                'emailNotifications': self.email_notifications
+            }
+        }
+
+    @classmethod
+    def create_default(cls, user_id):
+        """Create default preferences for a new user"""
+        preferences = cls(
+            user_id=user_id,
+            daily_reminders=True,
+            reminder_time=None,  # No default time, user must choose
+            quiz_notifications=True,
+            monthly_reports=True,
+            export_notifications=True,
+            theme='dark',
+            dashboard_layout='comfortable',
+            show_performance_trends=True,
+            auto_save=True,
+            show_timer=True,
+            confirm_before_submit=True,
+            review_mode='immediate',
+            default_export_format='csv',
+            include_personal_data=False,
+            auto_delete_days='14',
+            email_notifications=True
+        )
+        
+        db.session.add(preferences)
+        db.session.commit()
+        
+        return preferences
 
 class Subjects(db.Model):
     __tablename__ = "Subjects"
@@ -177,7 +273,7 @@ class Quizzes(db.Model):
             'description': self.description,
             'date_of_quiz': str(self.date_of_quiz) if self.date_of_quiz else None,
             'time_duration': self.time_duration,
-            'total_questions': self.total_questions,
+            'total_questions': len(self.questions),  # Use actual count instead of stored value
             'passing_score': self.passing_score,
             'remarks': self.remarks,
             'is_active': self.is_active

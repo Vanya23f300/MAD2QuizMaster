@@ -187,7 +187,153 @@ def register_subject_routes(app):
                 'error': str(e)
             }), 500
 
+    @app.route('/api/subjects/<int:subject_id>', methods=['PUT'])
+    @jwt_required()
+    @admin_required
+    def update_subject(subject_id):
+        """
+        Update a subject (Admin only)
+        ---
+        tags:
+          - Subjects
+        security:
+          - bearerAuth: []
+        parameters:
+          - in: path
+            name: subject_id
+            required: true
+            type: integer
+            description: ID of the subject to update
+          - in: body
+            name: body
+            required: true
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                is_active:
+                  type: boolean
+        responses:
+          200:
+            description: Subject updated successfully
+          403:
+            description: Admin access required
+          404:
+            description: Subject not found
+          409:
+            description: Subject name already exists
+        """
+        try:
+            # Get the subject
+            subject = Subjects.query.get_or_404(subject_id)
+            
+            # Get update data
+            data = request.get_json()
+            
+            # Check if name is being changed and if it already exists
+            if 'name' in data and data['name'] != subject.name:
+                existing_subject = Subjects.query.filter_by(name=data['name']).first()
+                if existing_subject:
+                    return jsonify({
+                        'message': 'Subject with this name already exists',
+                        'error': 'DUPLICATE_NAME'
+                    }), 409
+                subject.name = data['name']
+            
+            # Update other fields
+            if 'description' in data:
+                subject.description = data['description']
+            if 'is_active' in data:
+                subject.is_active = data['is_active']
+            
+            db.session.commit()
+            
+            logger.info(f"Subject updated: {subject.name}")
+            
+            return jsonify({
+                'message': 'Subject updated successfully',
+                'subject': {
+                    'id': subject.id,
+                    'name': subject.name,
+                    'description': subject.description,
+                    'is_active': subject.is_active,
+                    'created_at': subject.created_at.isoformat() if subject.created_at else None
+                }
+            }), 200
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating subject: {str(e)}")
+            return jsonify({
+                'message': 'Error updating subject',
+                'error': str(e)
+            }), 500
+
+    @app.route('/api/subjects/<int:subject_id>', methods=['DELETE'])
+    @jwt_required()
+    @admin_required
+    def delete_subject(subject_id):
+        """
+        Delete a subject (Admin only)
+        ---
+        tags:
+          - Subjects
+        security:
+          - bearerAuth: []
+        parameters:
+          - in: path
+            name: subject_id
+            required: true
+            type: integer
+            description: ID of the subject to delete
+        responses:
+          200:
+            description: Subject deleted successfully
+          403:
+            description: Admin access required
+          404:
+            description: Subject not found
+          409:
+            description: Cannot delete subject with existing chapters/quizzes
+        """
+        try:
+            # Get the subject
+            subject = Subjects.query.get_or_404(subject_id)
+            
+            # Check if subject has any chapters
+            if subject.chapters:
+                return jsonify({
+                    'message': 'Cannot delete subject with existing chapters. Please delete chapters first.',
+                    'error': 'HAS_DEPENDENCIES'
+                }), 409
+            
+            # Delete the subject
+            db.session.delete(subject)
+            db.session.commit()
+            
+            logger.info(f"Subject deleted: {subject.name}")
+            
+            return jsonify({
+                'message': 'Subject deleted successfully'
+            }), 200
+            
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error deleting subject: {str(e)}")
+            return jsonify({
+                'message': 'Error deleting subject',
+                'error': str(e)
+            }), 500
+
     @app.route('/api/subjects', methods=['OPTIONS'])
     def subjects_options():
         """Handle preflight requests"""
+        return '', 200
+
+    @app.route('/api/subjects/<int:subject_id>', methods=['OPTIONS'])
+    def subject_id_options(subject_id):
+        """Handle preflight requests for subject ID routes"""
         return '', 200

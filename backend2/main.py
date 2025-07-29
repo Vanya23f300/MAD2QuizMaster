@@ -5,10 +5,14 @@ from application.cache import init_redis
 from flask_cors import CORS
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
+from application.simple_email import init_mail
 from dotenv import load_dotenv
 import os
 from datetime import datetime, date, timedelta
 import logging
+
+# Load environment variables from .env file
+load_dotenv(override=True)  # Force override of any existing variables
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -29,13 +33,8 @@ def create_app():
     
     # Enhanced CORS Configuration
     CORS(app, resources={
-        r"/api/*": {
-            "origins": [
-                "http://localhost:8080",
-                "http://127.0.0.1:8080",
-                "http://localhost:3000",
-                "http://127.0.0.1:3000"
-            ],
+        r"/*": {
+            "origins": "*",
             "allow_headers": [
                 "Content-Type",
                 "Authorization",
@@ -106,36 +105,47 @@ def create_app():
     # Initialize Redis (will gracefully handle if Redis is not running)
     init_redis(app)
     
+    # Initialize Flask-Mail
+    init_mail(app)
+    
     # Create application context
     with app.app_context():
+        # Import models here to ensure they're registered with db
+        from application.models import Users, Subjects, Chapters, Quizzes, Questions, Scores
+        
         # Ensure database is created
+        print("Creating database tables...")
         db.create_all()
+        print("Database tables created.")
         
         # Check if admin user exists, if not create one
-        from application.models import Users
-        existing_admin = Users.query.filter_by(email="admin@email.com").first()
-        
-        if not existing_admin:
-            b = Bcrypt()
-            password = b.generate_password_hash("admin123").decode('utf-8')
+        try:
+            existing_admin = Users.query.filter_by(email="admin@email.com").first()
             
-            admin_user = Users(
-                email="admin@email.com",
-                username="admin",
-                password=password,
-                dob=date(1990, 1, 1),
-                qualification="System Administrator",
-                is_admin=True,
-                last_login=datetime.utcnow(),
-                is_active=True,
-                registration_date=datetime.utcnow()
-            )
-            
-            db.session.add(admin_user)
-            db.session.commit()
-            logger.info("Admin user created successfully")
-        else:
-            logger.info("Admin user already exists")
+            if not existing_admin:
+                from flask_bcrypt import Bcrypt
+                b = Bcrypt()
+                password = b.generate_password_hash("admin123").decode('utf-8')
+                
+                admin_user = Users(
+                    email="admin@email.com",
+                    username="admin",
+                    password=password,
+                    dob=date(1990, 1, 1),
+                    qualification="System Administrator",
+                    is_admin=True,
+                    last_login=datetime.utcnow(),
+                    is_active=True,
+                    registration_date=datetime.utcnow()
+                )
+                
+                db.session.add(admin_user)
+                db.session.commit()
+                logger.info("Admin user created successfully")
+            else:
+                logger.info("Admin user already exists")
+        except Exception as e:
+            logger.error(f"Error checking/creating admin user: {str(e)}")
     
     return app
 
@@ -148,9 +158,10 @@ from application.apis.subjects import register_subject_routes
 from application.apis.chapters import register_chapter_routes
 from application.apis.quizzes import create_quiz_routes
 from application.apis.questions import create_question_routes
-from application.apis.exports import create_export_routes
+from application.apis.exports import register_export_routes
 from application.apis.search import create_search_routes
 from application.apis.analytics import create_analytics_routes
+
 
 # Register all routes
 register_user_routes(app)
@@ -158,9 +169,10 @@ register_subject_routes(app)
 register_chapter_routes(app)
 create_quiz_routes(app)
 create_question_routes(app)
-create_export_routes(app)
+register_export_routes(app)
 create_search_routes(app)
 create_analytics_routes(app)
+
 
 # Dashboard statistics route
 @app.route('/api/dashboard/stats', methods=['GET'])
@@ -288,5 +300,6 @@ def fetch_recent_activities():
             'error': str(e)
         }), 500
 
-if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8000)
+if __name__ == "__main__":
+    print('starting local development')
+    app.run(host='0.0.0.0', port=8000, debug=True)

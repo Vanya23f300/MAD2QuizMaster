@@ -20,8 +20,9 @@ def create_analytics_routes(app):
         Available for both admin and users (different data scope)
         """
         try:
-            current_user_identity = get_jwt_identity()
-            current_user = Users.query.filter_by(email=current_user_identity['email']).first()
+            # Get current user's identity (just email string)
+            current_user_email = get_jwt_identity()
+            current_user = Users.query.filter_by(email=current_user_email).first()
             
             if not current_user:
                 return jsonify({
@@ -70,6 +71,91 @@ def create_analytics_routes(app):
                 'error': str(e)
             }), 500
     
+    @app.route('/api/analytics/top-performers', methods=['GET'])
+    @jwt_required()
+    def get_top_performers_api():
+        """
+        Get leaderboard data of all users for comparison
+        ---
+        tags:
+          - Analytics
+        security:
+          - bearerAuth: []
+        responses:
+          200:
+            description: Leaderboard data retrieved successfully
+          401:
+            description: Authentication required
+        """
+        try:
+            # Get current user's identity (just email string)
+            current_user_email = get_jwt_identity()
+            current_user = Users.query.filter_by(email=current_user_email).first()
+            
+            if not current_user:
+                return jsonify({
+                    'message': 'User not found',
+                    'error': 'USER_NOT_FOUND'
+                }), 404
+            
+            # Get top performers data (exclude admin users)
+            performers = db.session.query(
+                Users.id,
+                Users.username,
+                func.count(Scores.id).label('total_quizzes'),
+                func.avg(Scores.percentage).label('avg_score'),
+                func.count(func.nullif(Scores.passed, False)).label('passed_quizzes')
+            ).join(Scores, Users.id == Scores.user_id, isouter=True)\
+             .filter(Users.is_admin == False)\
+             .group_by(Users.id, Users.username)\
+             .order_by(func.avg(Scores.percentage).desc().nulls_last())\
+             .all()
+            
+            # Process data for frontend
+            leaderboard_data = []
+            for idx, perf in enumerate(performers):
+                # Calculate pass rate
+                total_quizzes = perf.total_quizzes or 0
+                pass_rate = (perf.passed_quizzes / total_quizzes * 100) if total_quizzes > 0 else 0
+                
+                # Check if this is the current user
+                is_current_user = (perf.id == current_user.id)
+                
+                # Add to leaderboard data
+                leaderboard_data.append({
+                    'id': perf.id,
+                    'username': perf.username,
+                    'total_quizzes': total_quizzes,
+                    'avg_score': round(float(perf.avg_score), 2) if perf.avg_score else 0,
+                    'pass_rate': round(pass_rate, 2),
+                    'rank': idx + 1,  # Add rank (1-based)
+                    'isCurrentUser': is_current_user
+                })
+            
+            # If user hasn't taken any quizzes, they might not be in the results
+            # Check and add current user if missing
+            if not any(entry['id'] == current_user.id for entry in leaderboard_data):
+                leaderboard_data.append({
+                    'id': current_user.id,
+                    'username': current_user.username,
+                    'total_quizzes': 0,
+                    'avg_score': 0,
+                    'pass_rate': 0,
+                    'rank': len(leaderboard_data) + 1,
+                    'isCurrentUser': True
+                })
+            
+            logger.info(f"Leaderboard data retrieved for user: {current_user.email}")
+            
+            return jsonify(leaderboard_data), 200
+            
+        except Exception as e:
+            logger.error(f"Leaderboard data error: {str(e)}")
+            return jsonify({
+                'message': 'Failed to retrieve leaderboard data',
+                'error': str(e)
+            }), 500
+    
     @app.route('/api/analytics/performance-metrics', methods=['GET'])
     @jwt_required()
     @cache_with_expiry(expiry_seconds=300, key_prefix="performance_metrics")
@@ -78,8 +164,9 @@ def create_analytics_routes(app):
         Get detailed performance metrics for analysis
         """
         try:
-            current_user_identity = get_jwt_identity()
-            current_user = Users.query.filter_by(email=current_user_identity['email']).first()
+            # Get current user's identity (just email string)
+            current_user_email = get_jwt_identity()
+            current_user = Users.query.filter_by(email=current_user_email).first()
             
             if not current_user:
                 return jsonify({

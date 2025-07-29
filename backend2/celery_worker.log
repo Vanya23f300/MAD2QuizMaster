@@ -1,0 +1,36 @@
+[2025-07-28 22:43:02,966: WARNING/MainProcess] /Users/vanya/QuizMasterMAD2/backend2/venv/lib/python3.9/site-packages/celery/worker/consumer/consumer.py:508: CPendingDeprecationWarning: The broker_connection_retry configuration setting will no longer determine
+whether broker connection retries are made during startup in Celery 6.0 and above.
+If you wish to retain the existing behavior for retrying connections on startup,
+you should set broker_connection_retry_on_startup to True.
+  warnings.warn(
+
+[2025-07-28 22:43:02,972: INFO/MainProcess] Connected to redis://localhost:6379/0
+[2025-07-28 22:43:02,973: WARNING/MainProcess] /Users/vanya/QuizMasterMAD2/backend2/venv/lib/python3.9/site-packages/celery/worker/consumer/consumer.py:508: CPendingDeprecationWarning: The broker_connection_retry configuration setting will no longer determine
+whether broker connection retries are made during startup in Celery 6.0 and above.
+If you wish to retain the existing behavior for retrying connections on startup,
+you should set broker_connection_retry_on_startup to True.
+  warnings.warn(
+
+[2025-07-28 22:43:02,975: INFO/MainProcess] mingle: searching for neighbors
+[2025-07-28 22:43:03,984: INFO/MainProcess] mingle: all alone
+[2025-07-28 22:43:03,996: INFO/MainProcess] celery@VANYAs-MacBook-Air.local ready.
+[2025-07-28 22:43:38,177: INFO/MainProcess] Task application.celery_tasks.generate_user_quiz_export[487d16df-3c23-4f86-b714-deb56f9046ed] received
+[2025-07-28 22:43:38,210: INFO/ForkPoolWorker-1] Starting quiz export for user 2
+[2025-07-28 22:43:38,259: INFO/ForkPoolWorker-1] Export completed successfully for user 2
+[2025-07-28 22:43:38,260: INFO/ForkPoolWorker-1] Task application.celery_tasks.generate_user_quiz_export[487d16df-3c23-4f86-b714-deb56f9046ed] succeeded in 0.07600883299999595s: {'status': 'completed', 'message': 'Export completed successfully', 'filename': 'cleanup_test_export.csv'}
+[2025-07-28 23:40:19,080: WARNING/MainProcess] /Users/vanya/QuizMasterMAD2/backend2/venv/lib/python3.9/site-packages/celery/worker/consumer/consumer.py:508: CPendingDeprecationWarning: The broker_connection_retry configuration setting will no longer determine
+whether broker connection retries are made during startup in Celery 6.0 and above.
+If you wish to retain the existing behavior for retrying connections on startup,
+you should set broker_connection_retry_on_startup to True.
+  warnings.warn(
+
+[2025-07-28 23:40:19,090: INFO/MainProcess] Connected to redis://localhost:6379/0
+[2025-07-28 23:40:19,090: WARNING/MainProcess] /Users/vanya/QuizMasterMAD2/backend2/venv/lib/python3.9/site-packages/celery/worker/consumer/consumer.py:508: CPendingDeprecationWarning: The broker_connection_retry configuration setting will no longer determine
+whether broker connection retries are made during startup in Celery 6.0 and above.
+If you wish to retain the existing behavior for retrying connections on startup,
+you should set broker_connection_retry_on_startup to True.
+  warnings.warn(
+
+[2025-07-28 23:40:19,093: INFO/MainProcess] mingle: searching for neighbors
+[2025-07-28 23:40:20,100: INFO/MainProcess] mingle: all alone
+[2025-07-28 23:40:20,112: INFO/MainProcess] celery@VANYAs-MacBook-Air.local ready.

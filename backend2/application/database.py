@@ -1,6 +1,6 @@
-from sqlalchemy.ext.declarative import declarative_base
 from flask_sqlalchemy import SQLAlchemy
 
-engine=None
-Base= declarative_base()
-db=SQLAlchemy()
+# Create a single SQLAlchemy instance to be used across the app
+db = SQLAlchemy()
+
+# No need for separate Base or engine - they're already managed by Flask-SQLAlchemy
