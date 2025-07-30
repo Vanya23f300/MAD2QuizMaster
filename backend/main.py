@@ -122,6 +122,7 @@ from application.apis.quizzes import create_quiz_routes
 from application.apis.analytics import create_analytics_routes
 from application.apis.search import create_search_routes
 from application.apis.exports import register_export_routes
+from application.apis.dashboard import create_dashboard_routes
 
 register_user_routes(app)
 register_subject_routes(app)
@@ -131,6 +132,7 @@ create_quiz_routes(app)
 create_analytics_routes(app)
 create_search_routes(app)
 register_export_routes(app)
+create_dashboard_routes(app)
 
 @app.route('/api/test', methods=['GET'])
 def test_route():
