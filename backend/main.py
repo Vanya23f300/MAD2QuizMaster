@@ -98,15 +98,11 @@ def create_app():
         # Create default admin user if it doesn't exist
         admin_user = Users.query.filter_by(email='admin@email.com').first()
         if not admin_user:
-            admin_user = Users(
-                username='admin',
+            admin_user = Users.create_admin(
                 email='admin@email.com',
-                password=bcrypt.generate_password_hash('admin').decode('utf-8'),
-                role='admin',
-                is_active=True
+                username='admin',
+                password='admin'
             )
-            db.session.add(admin_user)
-            db.session.commit()
             logger.info("Default admin user created: admin@email.com / admin")
     
     # Push app context as per documentation pattern

@@ -59,6 +59,7 @@ class Users(db.Model):
             password=hashed_password,
             is_admin=True,
             is_active=True,
+            dob=datetime(2000, 1, 1).date(),  # Default admin birth date
             qualification='Quiz Master Administrator',
             last_login=datetime.utcnow(),
             registration_date=datetime.utcnow()
