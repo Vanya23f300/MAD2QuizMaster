@@ -31,96 +31,119 @@ def generate_user_quiz_export(self, user_id, filename):
     try:
         logger.info(f"Starting quiz export for user {user_id}")
         
-        # Use the Flask application context
-        with app.app_context():
+        # Create a safe database session (like other tasks)
+        session = get_safe_session()
+        
+        try:
+            # First get the user's email - since Scores.user_id contains emails, not IDs
+            user = session.query(Users).filter(Users.id == user_id).first()
+            if not user:
+                logger.error(f"User with ID {user_id} not found")
+                return {
+                    'status': 'completed',
+                    'message': 'User not found',
+                    'filename': None
+                }
+            
+            user_email = user.email
+            logger.info(f"Found user {user.username} with email {user_email}")
+            
             # Get all quiz attempts by the user with related data
-            scores = db.session.query(Scores, Quizzes, Chapters, Subjects)\
+            # NOTE: Scores.user_id contains email addresses, not user IDs
+            scores = session.query(Scores, Quizzes, Chapters, Subjects)\
                 .join(Quizzes, Scores.quiz_id == Quizzes.id)\
                 .join(Chapters, Quizzes.chapter_id == Chapters.id)\
                 .join(Subjects, Chapters.subject_id == Subjects.id)\
-                .filter(Scores.user_id == user_id)\
+                .filter(Scores.user_id == user_email)\
                 .order_by(Scores.time_stamp_of_attempt.desc())\
                 .all()
             
             if not scores:
-                logger.warning(f"No quiz attempts found for user {user_id}")
+                logger.warning(f"No quiz attempts found for user {user_id} (email: {user_email})")
                 return {
                     'status': 'completed',
                     'message': 'No quiz attempts found',
                     'filename': None
                 }
             
-            # Ensure exports directory exists
-            export_dir = os.path.join('static', 'exports')
-            os.makedirs(export_dir, exist_ok=True)
-            try:
-                os.chmod(export_dir, 0o777)  # Make sure directory is writable
-            except:
-                pass  # Ignore permission errors, just try to create
+            logger.info(f"Found {len(scores)} quiz attempts for user {user_id}")
+            
+            # Use consistent path with API (app.instance_path/exports)
+            with app.app_context():
+                export_dir = os.path.join(app.instance_path, 'exports')
+                os.makedirs(export_dir, exist_ok=True)
+                try:
+                    os.chmod(export_dir, 0o777)  # Make sure directory is writable
+                except:
+                    pass  # Ignore permission errors, just try to create
 
-            # Create CSV file
-            file_path = os.path.join(export_dir, filename)
-            with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
-                writer = csv.writer(csvfile)
-                
-                # Write headers
-                writer.writerow([
-                    'Quiz ID',
-                    'Quiz Name',
-                    'Chapter ID',
-                    'Chapter Name',
-                    'Subject ID',
-                    'Subject Name',
-                    'Date of Quiz',
-                    'Attempt Date',
-                    'Score',
-                    'Total Score',
-                    'Percentage',
-                    'Passed',
-                    'Time Taken (minutes)',
-                    'Time Taken (seconds)',
-                    'Remarks'
-                ])
-                
-                # Write data rows
-                total_rows = len(scores)
-                for idx, (score, quiz, chapter, subject) in enumerate(scores, 1):
+                # Create CSV file
+                file_path = os.path.join(export_dir, filename)
+                with open(file_path, 'w', newline='', encoding='utf-8') as csvfile:
+                    writer = csv.writer(csvfile)
+                    
+                    # Write headers
                     writer.writerow([
-                        quiz.id,
-                        quiz.name,
-                        chapter.id,
-                        chapter.name,
-                        subject.id,
-                        subject.name,
-                        quiz.date_of_quiz.strftime('%Y-%m-%d') if quiz.date_of_quiz else 'N/A',
-                        score.time_stamp_of_attempt.strftime('%Y-%m-%d %H:%M:%S'),
-                        score.total_scored,
-                        score.total_possible_score,
-                        f"{score.percentage:.2f}%",
-                        'Yes' if score.passed else 'No',
-                        f"{score.time_taken / 60:.1f}" if score.time_taken else '0.0',
-                        score.time_taken if score.time_taken else 0,
-                        quiz.remarks or ''
+                        'Quiz ID',
+                        'Quiz Name',
+                        'Chapter ID',
+                        'Chapter Name',
+                        'Subject ID',
+                        'Subject Name',
+                        'Date of Quiz',
+                        'Attempt Date',
+                        'Score',
+                        'Total Score',
+                        'Percentage',
+                        'Passed',
+                        'Time Taken (minutes)',
+                        'Time Taken (seconds)',
+                        'Remarks'
                     ])
                     
-                    # Update progress
-                    self.update_state(
-                        state='PROGRESS',
-                        meta={
-                            'current': idx,
-                            'total': total_rows,
-                            'status': f'Processing row {idx} of {total_rows}'
-                        }
-                    )
+                    # Write data rows
+                    total_rows = len(scores)
+                    for idx, (score, quiz, chapter, subject) in enumerate(scores, 1):
+                        writer.writerow([
+                            quiz.id,
+                            quiz.name,
+                            chapter.id,
+                            chapter.name,
+                            subject.id,
+                            subject.name,
+                            quiz.date_of_quiz.strftime('%Y-%m-%d') if quiz.date_of_quiz else 'N/A',
+                            score.time_stamp_of_attempt.strftime('%Y-%m-%d %H:%M:%S'),
+                            score.total_scored,
+                            score.total_possible_score,
+                            f"{score.percentage:.2f}%",
+                            'Yes' if score.passed else 'No',
+                            f"{score.time_taken / 60:.1f}" if score.time_taken else '0.0',
+                            score.time_taken if score.time_taken else 0,
+                            quiz.remarks or ''
+                        ])
+                        
+                        # Update progress (only if running in Celery context)
+                        if hasattr(self, 'request') and self.request.id:
+                            self.update_state(
+                                state='PROGRESS',
+                                meta={
+                                    'current': idx,
+                                    'total': total_rows,
+                                    'status': f'Processing row {idx} of {total_rows}'
+                                }
+                            )
             
-        logger.info(f"Export completed successfully for user {user_id}")
+            logger.info(f"Export completed successfully for user {user_id}")
+                
+            return {
+                'status': 'completed',
+                'message': 'Export completed successfully',
+                'filename': filename
+            }
+        finally:
+            # Always close the session
+            session.close()
             
-        return {
-            'status': 'completed',
-            'message': 'Export completed successfully',
-            'filename': filename
-        }
-        
     except Exception as e:
         logger.error(f"Export failed for user {user_id}: {str(e)}")
         raise
