@@ -22,17 +22,7 @@
             <p class="text-light">Take quizzes and track your progress</p>
           </div>
           
-          <!-- User Settings Button -->
-          <div class="d-flex align-items-center me-3">
-            <button 
-              class="btn btn-dark-toggle d-flex align-items-center gap-2 me-3"
-              @click="showPreferences"
-              title="User Settings"
-            >
-              <i class="bi bi-sliders"></i>
-              <span>Settings</span>
-            </button>
-          </div>
+
           
           <!-- Notification button -->
           <div class="notification-area">
@@ -48,13 +38,6 @@
                 {{ unreadNotifications }}
               </span>
             </button>
-            <button
-              class="btn btn-dark-toggle"
-              @click="showNotificationSettings"
-              title="Notification Settings"
-            >
-              <i class="bi bi-gear-fill"></i>
-            </button>
           </div>
         </div>
         
@@ -63,12 +46,7 @@
           <NotificationCenter @close="toggleNotifications" />
         </div>
 
-        <!-- Notification Setup Modal for New Users -->
-        <NotificationSetupModal 
-          :show="showNotificationSetup" 
-          @close="hideNotificationSetup"
-          @saved="onPreferencesSaved"
-        />
+
 
         <!-- Daily Reminder (only show if there are unattempted quizzes) -->
         <div v-if="unreadNotifications > 0" class="daily-reminder glass-card mb-4">
@@ -108,8 +86,6 @@
           </div>
           
           <div class="card-body">
-            <!-- Debug Info -->
-            <div class="debug-text mb-3">Stats: {{ JSON.stringify(stats) }}</div>
             
             <div class="stats-container">
               <!-- Total Quizzes -->
@@ -291,30 +267,7 @@
       </div>
     </div>
     
-    <!-- User Preferences Modal -->
-    <div 
-      class="modal fade" 
-      id="userPreferencesModal" 
-      tabindex="-1" 
-      aria-labelledby="userPreferencesModalLabel" 
-      aria-hidden="true"
-    >
-      <div class="modal-dialog modal-lg modal-dialog-centered">
-        <div class="modal-content glass-card">
-          <div class="modal-header border-bottom-0">
-            <h5 class="modal-title text-light" id="userPreferencesModalLabel">User Preferences</h5>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <div class="modal-body">
-            <UserPreferences 
-              @preferences-saved="onPreferencesSaved"
-              @success="showSuccess"
-              @error="showError"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
+
     
     <!-- Export Manager Modal -->
     <div 
@@ -348,20 +301,16 @@ import SubjectService from '@/services/subject-service'
 import DashboardService from '@/services/dashboard-service'
 import BaseSidebar from '@/components/BaseSidebar.vue'
 import NotificationCenter from '@/components/NotificationCenter.vue'
-import UserPreferences from '@/components/UserPreferences.vue'
+
 import ExportManager from '@/components/ExportManager.vue'
 import NotificationService from '@/services/notification-service'
-import NotificationSetupModal from '@/components/NotificationSetupModal.vue'
-import api from '@/services/api'
 
 export default {
   name: 'UserDashboardView',
   components: {
     BaseSidebar,
     NotificationCenter,
-    UserPreferences,
-    ExportManager,
-    NotificationSetupModal
+    ExportManager
   },
   data() {
     return {
@@ -370,7 +319,6 @@ export default {
       loading: false,
       error: null,
       showNotifications: false,
-      showNotificationSetup: false,
       unreadNotifications: 0,
       stats: {
         quizzesTaken: 0,
@@ -380,7 +328,6 @@ export default {
       },
       recentScores: [],
       loadingScores: false,
-      preferencesModal: null,
       exportModal: null
     }
   },
@@ -510,22 +457,13 @@ export default {
         }
         
         // Find the modal elements
-        const preferencesModalEl = document.getElementById('userPreferencesModal');
         const exportModalEl = document.getElementById('exportManagerModal');
-        
-        if (!preferencesModalEl) {
-          console.error('Preferences modal element not found');
-        }
         
         if (!exportModalEl) {
           console.error('Export modal element not found');
         }
         
         // Initialize the modals if elements exist
-        if (preferencesModalEl) {
-          this.preferencesModal = new bootstrap.Modal(preferencesModalEl);
-          console.log('Preferences modal initialized');
-        }
         
         if (exportModalEl) {
           this.exportModal = new bootstrap.Modal(exportModalEl);
@@ -537,11 +475,7 @@ export default {
       }
     },
     
-    showPreferences() {
-      if (this.preferencesModal) {
-        this.preferencesModal.show()
-      }
-    },
+
     
     showExports() {
       // Check if user is authenticated
@@ -579,79 +513,13 @@ export default {
       }
     },
     
-    onPreferencesSaved(preferences) {
-      console.log('Preferences saved:', preferences)
-      
-      // Apply any needed UI changes based on preferences
-      this.showNotificationSetup = false
-      
-      // Show success notification
-      this.showSuccess('Your notification preferences have been saved!')
-      
-      // Refresh user preferences
-      this.checkUserPreferences()
-    },
+
     
-    hideNotificationSetup() {
-      console.log('Hiding notification setup modal')
-      this.showNotificationSetup = false
-    },
-    
+    // User preferences functionality has been removed
     async checkUserPreferences() {
-      try {
-        console.log('Checking user preferences...')
-        
-        // Check if this is the first login by seeing if user preferences exist
-        const response = await api.get('/api/user/preferences')
-        
-        console.log('User preferences response:', response.data)
-        
-        // If no preferences exist or daily reminders not set, show the modal
-        const hasPreferences = response.data && response.data.preferences
-        
-        // If no preferences found, show the setup modal
-        if (!hasPreferences) {
-          console.log('No preferences found, showing setup modal')
-          this.showNotificationSetup = true
-          return
-        }
-        
-        // Check if daily reminders are enabled but no reminder time is set
-        try {
-          const preferences = response.data.preferences
-          const notifications = preferences.notifications || {}
-          
-          // Check if this is a new user or if notifications haven't been configured
-          const isNewUser = !preferences || !preferences.notifications
-          
-          // Check if reminder time is missing when reminders are enabled
-          const needsReminderTime = preferences && 
-                                 notifications && 
-                                 notifications.dailyReminders && 
-                                 !notifications.reminderTime
-          
-          console.log('Preferences check:', { 
-            isNewUser, 
-            needsReminderTime,
-            dailyReminders: notifications.dailyReminders,
-            reminderTime: notifications.reminderTime
-          })
-          
-          // Show setup modal for new users or when reminder time is missing
-          if (isNewUser || needsReminderTime) {
-            // Show the notification setup modal
-            console.log('Notification setup needed. Showing notification setup modal.')
-            this.showNotificationSetup = true
-          }
-        } catch (parseError) {
-          console.error('Error parsing preferences:', parseError)
-          this.showNotificationSetup = true
-        }
-      } catch (error) {
-        console.error('Error checking user preferences:', error)
-        // If error, assume new user and show modal
-        this.showNotificationSetup = true
-      }
+      // This method is kept as a stub to avoid breaking references
+      // but no longer does anything
+      return;
     },
     
     showSuccess(message) {
@@ -765,8 +633,9 @@ export default {
     },
 
     showNotificationSettings() {
-      // Show the notification setup modal directly when needed
-      this.showNotificationSetup = true
+      // Notification settings functionality has been removed
+      // No action is performed now
+      return;
     },
     
     async checkForNewQuizzes() {
