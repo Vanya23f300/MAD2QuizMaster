@@ -47,28 +47,6 @@
               Go to Dashboard
             </button>
           </div>
-
-          <!-- Leaderboard Chart -->
-          <div v-else class="row mb-4">
-            <div class="col-12">
-              <div class="card glass p-4">
-                <h5 class="text-light mb-3">Class Performance Ranking</h5>
-                
-                <p class="text-light small mb-3">
-                  This chart shows how you compare to other students. Your bar is highlighted in blue. 
-                  Hover over any bar to see detailed metrics. All data is anonymous.
-                </p>
-                <div style="height: 400px;">
-                  <ChartComponent
-                    type="bar"
-                    :data="leaderboardChartData"
-                    :options="leaderboardChartOptions"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- Performance Chart -->
           <div v-if="!loading && !error && recentScores.length > 0" class="row mb-4">
             <div class="col-12">
