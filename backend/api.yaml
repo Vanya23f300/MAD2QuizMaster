@@ -1,0 +1,708 @@
+openapi: 3.0.0
+info:
+  title: Quiz Master API
+  description: API for Quiz Master application
+  version: 1.0.0
+  contact:
+    name: Vanya Tentiwala
+    email: 23f3002427@ds.study.iitm.ac.in
+servers:
+  - url: http://localhost:8000
+    description: Development server
+tags:
+  - name: Authentication
+    description: User authentication endpoints
+  - name: Users
+    description: User management endpoints
+  - name: Subjects
+    description: Subject management endpoints
+  - name: Chapters
+    description: Chapter management endpoints
+  - name: Quizzes
+    description: Quiz management endpoints
+  - name: Questions
+    description: Question management endpoints
+  - name: Scores
+    description: Quiz scoring endpoints
+  - name: Analytics
+    description: Analytics and dashboard data
+  - name: Exports
+    description: Data export functionality
+  - name: Search
+    description: Search functionality
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        email:
+          type: string
+        username:
+          type: string
+        is_admin:
+          type: boolean
+        last_login:
+          type: string
+          format: date-time
+        registration_date:
+          type: string
+          format: date-time
+        dob:
+          type: string
+          format: date
+        qualification:
+          type: string
+        is_active:
+          type: boolean
+    Subject:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        created_by:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        is_active:
+          type: boolean
+    Chapter:
+      type: object
+      properties:
+        id:
+          type: integer
+        subject_id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        order:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+    Quiz:
+      type: object
+      properties:
+        id:
+          type: integer
+        chapter_id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        date_of_quiz:
+          type: string
+          format: date
+        time_duration:
+          type: integer
+        total_questions:
+          type: integer
+        passing_score:
+          type: number
+          format: float
+        remarks:
+          type: string
+        is_active:
+          type: boolean
+    Question:
+      type: object
+      properties:
+        id:
+          type: integer
+        quiz_id:
+          type: integer
+        question_statement:
+          type: string
+        options:
+          type: array
+          items:
+            type: string
+        correct_option:
+          type: integer
+        difficulty_level:
+          type: string
+        marks:
+          type: number
+          format: float
+    Score:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        quiz_id:
+          type: integer
+        time_stamp_of_attempt:
+          type: string
+          format: date-time
+        total_scored:
+          type: number
+          format: float
+        total_possible_score:
+          type: number
+          format: float
+        time_taken:
+          type: integer
+        percentage:
+          type: number
+          format: float
+        passed:
+          type: boolean
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        error:
+          type: string
+
+paths:
+  /api/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and return JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+              required:
+                - email
+                - password
+      responses:
+        '200':
+          description: Successful login
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/signup:
+    post:
+      tags:
+        - Authentication
+      summary: User registration
+      description: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                username:
+                  type: string
+                password:
+                  type: string
+                dob:
+                  type: string
+                  format: date
+                qualification:
+                  type: string
+              required:
+                - email
+                - username
+                - password
+                - dob
+                - qualification
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+        '400':
+          description: Invalid input
+        '409':
+          description: User already exists
+          
+  /admin/initialize:
+    post:
+      tags:
+        - Authentication
+      summary: Initialize admin user
+      description: Creates the initial admin user if none exists
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '201':
+          description: Admin created successfully
+        '200':
+          description: Admin already exists
+          
+  /api/subjects:
+    get:
+      tags:
+        - Subjects
+      summary: Get all subjects
+      description: Retrieve all active subjects
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of subjects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Subject'
+        '403':
+          description: Authentication required
+          
+    post:
+      tags:
+        - Subjects
+      summary: Create subject
+      description: Create a new subject (Admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+              required:
+                - name
+      responses:
+        '201':
+          description: Subject created successfully
+        '400':
+          description: Invalid input
+        '403':
+          description: Admin access required
+        '409':
+          description: Subject already exists
+          
+  /api/subjects/{subject_id}:
+    parameters:
+      - name: subject_id
+        in: path
+        required: true
+        schema:
+          type: integer
+          
+    put:
+      tags:
+        - Subjects
+      summary: Update subject
+      description: Update an existing subject (Admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                is_active:
+                  type: boolean
+      responses:
+        '200':
+          description: Subject updated successfully
+        '403':
+          description: Admin access required
+        '404':
+          description: Subject not found
+          
+    delete:
+      tags:
+        - Subjects
+      summary: Delete subject
+      description: Delete an existing subject (Admin only)
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Subject deleted successfully
+        '403':
+          description: Admin access required
+        '404':
+          description: Subject not found
+          
+  /api/chapters:
+    get:
+      tags:
+        - Chapters
+      summary: Get all chapters
+      description: Retrieve all chapters (can filter by subject ID)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: subject_id
+          in: query
+          schema:
+            type: integer
+          required: false
+          description: Filter by subject ID
+      responses:
+        '200':
+          description: List of chapters
+        '403':
+          description: Authentication required
+          
+    post:
+      tags:
+        - Chapters
+      summary: Create chapter
+      description: Create a new chapter (Admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject_id:
+                  type: integer
+                name:
+                  type: string
+                description:
+                  type: string
+                order:
+                  type: integer
+              required:
+                - subject_id
+                - name
+      responses:
+        '201':
+          description: Chapter created successfully
+        '400':
+          description: Invalid input
+        '403':
+          description: Admin access required
+          
+  /api/quizzes:
+    get:
+      tags:
+        - Quizzes
+      summary: Get all quizzes
+      description: Retrieve all quizzes (can filter by chapter ID)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: chapter_id
+          in: query
+          schema:
+            type: integer
+          required: false
+          description: Filter by chapter ID
+      responses:
+        '200':
+          description: List of quizzes
+        '403':
+          description: Authentication required
+          
+    post:
+      tags:
+        - Quizzes
+      summary: Create quiz
+      description: Create a new quiz (Admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                chapter_id:
+                  type: integer
+                name:
+                  type: string
+                description:
+                  type: string
+                date_of_quiz:
+                  type: string
+                  format: date
+                time_duration:
+                  type: integer
+                passing_score:
+                  type: number
+                  format: float
+                remarks:
+                  type: string
+              required:
+                - chapter_id
+                - name
+                - time_duration
+                - passing_score
+      responses:
+        '201':
+          description: Quiz created successfully
+        '400':
+          description: Invalid input
+        '403':
+          description: Admin access required
+          
+  /api/questions:
+    get:
+      tags:
+        - Questions
+      summary: Get questions
+      description: Retrieve questions (filter by quiz ID)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: quiz_id
+          in: query
+          schema:
+            type: integer
+          required: true
+          description: Filter by quiz ID
+      responses:
+        '200':
+          description: List of questions
+        '403':
+          description: Authentication required
+          
+    post:
+      tags:
+        - Questions
+      summary: Create question
+      description: Create a new question (Admin only)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quiz_id:
+                  type: integer
+                question_statement:
+                  type: string
+                option1:
+                  type: string
+                option2:
+                  type: string
+                option3:
+                  type: string
+                option4:
+                  type: string
+                correct_option:
+                  type: integer
+                difficulty_level:
+                  type: string
+                marks:
+                  type: number
+                  format: float
+              required:
+                - quiz_id
+                - question_statement
+                - option1
+                - option2
+                - option3
+                - option4
+                - correct_option
+      responses:
+        '201':
+          description: Question created successfully
+        '400':
+          description: Invalid input
+        '403':
+          description: Admin access required
+          
+  /api/quiz/{quiz_id}/take:
+    parameters:
+      - name: quiz_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags:
+        - Quizzes
+      summary: Get quiz for taking
+      description: Get quiz details and questions for taking the quiz
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Quiz details and questions
+        '403':
+          description: Authentication required
+        '404':
+          description: Quiz not found
+          
+  /api/quiz/{quiz_id}/submit:
+    parameters:
+      - name: quiz_id
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags:
+        - Scores
+      summary: Submit quiz answers
+      description: Submit answers and get score
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                answers:
+                  type: object
+                  additionalProperties:
+                    type: integer
+                time_taken:
+                  type: integer
+              required:
+                - answers
+                - time_taken
+      responses:
+        '200':
+          description: Quiz score and results
+        '400':
+          description: Invalid input
+        '403':
+          description: Authentication required
+          
+  /api/user/scores:
+    get:
+      tags:
+        - Scores
+      summary: Get user scores
+      description: Get scores for the current user
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: List of user scores
+        '403':
+          description: Authentication required
+          
+  /api/dashboard/stats:
+    get:
+      tags:
+        - Analytics
+      summary: Get dashboard stats
+      description: Get statistics for the dashboard
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Dashboard statistics
+        '403':
+          description: Authentication required
+          
+  /api/exports/quiz-results:
+    get:
+      tags:
+        - Exports
+      summary: Export quiz results
+      description: Export quiz results as CSV
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [csv, pdf]
+          required: false
+          description: Export format (default is csv)
+      responses:
+        '200':
+          description: Export started successfully
+        '403':
+          description: Authentication required
+          
+  /api/search:
+    get:
+      tags:
+        - Search
+      summary: Search
+      description: Search across subjects, chapters, and quizzes
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+          required: true
+          description: Search query
+      responses:
+        '200':
+          description: Search results
+        '403':
+          description: Authentication required 
