@@ -10,6 +10,7 @@
       <ul class="nav flex-column">
         <li v-for="item in navigationItems" :key="item.path" class="nav-item">
           <router-link
+            v-if="!item.action"
             :to="item.path"
             class="nav-link d-flex align-items-center"
             :class="{ 'active': $route.path === item.path }"
@@ -17,6 +18,15 @@
             <i :class="item.icon" class="nav-icon me-3"></i>
             <span v-if="!collapsed" class="nav-text">{{ item.label }}</span>
           </router-link>
+          <a
+            v-else
+            href="#"
+            class="nav-link d-flex align-items-center"
+            @click.prevent="$emit(item.action)"
+          >
+            <i :class="item.icon" class="nav-icon me-3"></i>
+            <span v-if="!collapsed" class="nav-text">{{ item.label }}</span>
+          </a>
         </li>
       </ul>
     </nav>
@@ -32,6 +42,7 @@ export default {
       default: 'user'
     }
   },
+  emits: ['showExports', 'logout'],
   data() {
     return {
       collapsed: false
@@ -55,7 +66,8 @@ export default {
           { path: '/user/scores', label: 'My Scores', icon: 'bi bi-trophy' },
           { path: '/user/summary', label: 'Summary Charts', icon: 'bi bi-graph-up' },
           { path: '/user/profile', label: 'My Profile', icon: 'bi bi-person-circle' },
-          { path: '/login', label: 'Logout', icon: 'bi bi-box-arrow-right' }
+          { path: '#exports', label: 'Export Data', icon: 'bi bi-file-earmark-arrow-down', action: 'showExports' },
+          { path: '#logout', label: 'Logout', icon: 'bi bi-box-arrow-right', action: 'logout' }
         ]
       }
     }

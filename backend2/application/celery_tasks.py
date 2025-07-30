@@ -1,47 +1,33 @@
-from celery import Celery
-from application.database import db
+from main import app, celery, mail, db
 from application.models import Users, Quizzes, Chapters, Subjects, Scores
+from flask_mail import Message
 from datetime import datetime, timedelta
 from sqlalchemy import desc, func, and_, or_
 import csv
 import os
 import logging
+from sqlalchemy.orm import sessionmaker, scoped_session
+from sqlalchemy import create_engine
 
 logger = logging.getLogger(__name__)
 
-# Configure celery from celery_config.py
-from application.celery_config import celery
+# Create a function to get a safe session for worker processes
+def get_safe_session():
+    # Get database URI from app config
+    with app.app_context():
+        db_uri = app.config.get('SQLALCHEMY_DATABASE_URI')
+    
+    # Create a new engine and session just for this worker task
+    engine = create_engine(db_uri, connect_args={'check_same_thread': False, 'timeout': 30})
+    session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    Session = scoped_session(session_factory)
+    return Session()
 
 @celery.task(bind=True)
 def generate_user_quiz_export(self, user_id, filename):
     """
     Generate CSV export of user's quiz attempts
     """
-    try:
-        import os  # Ensure os is imported directly within the task scope
-        import csv  # Ensure csv is also available
-        from flask import Flask
-        from application.config import LocalDevelopmentConfig
-        
-        # Create a Flask app for this task
-        app = Flask(__name__)
-        app.config.from_object(LocalDevelopmentConfig)
-        
-        # Explicitly set the database URI if not already set
-        if 'SQLALCHEMY_DATABASE_URI' not in app.config or not app.config['SQLALCHEMY_DATABASE_URI']:
-            # Set the database URI to point to the instance folder
-            BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-            DB_PATH = os.path.join(BASE_DIR, 'instance', 'database.sqlite3')
-            app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
-        
-        db.init_app(app)
-    except ImportError as e:
-        logger.error(f"Import error in export task: {str(e)}")
-        return {
-            'status': 'failed',
-            'message': f'Import error: {str(e)}. Please contact support.'
-        }
-    
     try:
         logger.info(f"Starting quiz export for user {user_id}")
         
@@ -65,7 +51,7 @@ def generate_user_quiz_export(self, user_id, filename):
                 }
             
             # Ensure exports directory exists
-            export_dir = os.path.join('instance', 'exports')
+            export_dir = os.path.join('static', 'exports')
             os.makedirs(export_dir, exist_ok=True)
             try:
                 os.chmod(export_dir, 0o777)  # Make sure directory is writable
@@ -139,33 +125,21 @@ def generate_user_quiz_export(self, user_id, filename):
         logger.error(f"Export failed for user {user_id}: {str(e)}")
         raise
 
-@celery.task(bind=True)
-def send_daily_reminders(self):
+@celery.task
+def send_daily_reminders():
     """
     Send daily reminders to users who haven't logged in recently
     """
     try:
-        from flask import Flask
-        from application.config import LocalDevelopmentConfig
-        from application.simple_email import send_daily_reminder
+        # Create a safe database session
+        session = get_safe_session()
         
-        # Create a Flask app for this task
-        app = Flask(__name__)
-        app.config.from_object(LocalDevelopmentConfig)
-        
-        # Explicitly set the database URI
-        BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-        DB_PATH = os.path.join(BASE_DIR, 'instance', 'database.sqlite3')
-        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
-        
-        db.init_app(app)
-        
-        with app.app_context():
+        try:
             # Define what "inactive" means - users who haven't logged in for more than 2 days
             cutoff_date = datetime.utcnow() - timedelta(days=2)
             
             # Find inactive users
-            inactive_users = Users.query.filter(
+            inactive_users = session.query(Users).filter(
                 Users.is_active == True,
                 or_(
                     Users.last_login == None,
@@ -176,8 +150,7 @@ def send_daily_reminders(self):
             logger.info(f"Found {len(inactive_users)} inactive users to send reminders to")
             
             # Get available quizzes (active quizzes created in the last 7 days)
-            recent_cutoff = datetime.utcnow() - timedelta(days=7)
-            recent_quizzes = db.session.query(
+            recent_quizzes = session.query(
                 Quizzes, Chapters, Subjects
             ).join(
                 Chapters, Quizzes.chapter_id == Chapters.id
@@ -201,24 +174,113 @@ def send_daily_reminders(self):
             success_count = 0
             for user in inactive_users:
                 try:
-                    # Send reminder email
-                    result = send_daily_reminder(
-                        user_email=user.email,
-                        user_name=user.username,
-                        available_quizzes=available_quizzes
-                    )
+                    # Prepare email content
+                    subject = "Daily Quiz Reminder - QuizMaster"
                     
-                    if result:
+                    # Create quiz list HTML
+                    quiz_list_html = ""
+                    for quiz in available_quizzes[:5]:  # Show first 5 quizzes
+                        quiz_list_html += f"""
+                        <tr>
+                            <td style="padding: 8px; border-bottom: 1px solid #e0e0e0;">
+                                <strong>{quiz['name']}</strong><br>
+                                <small style="color: #666;">{quiz['subject']} - {quiz['chapter']}</small>
+                            </td>
+                        </tr>"""
+                    
+                    # HTML email template
+                    html_body = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Daily Quiz Reminder</title>
+                    </head>
+                    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 300;">📚 QuizMaster</h1>
+                            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Daily Quiz Reminder</p>
+                        </div>
+                        
+                        <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            <h2 style="color: #4a5568; margin-top: 0;">Hello {user.username}! 👋</h2>
+                            
+                            <p style="font-size: 16px; color: #4a5568; margin-bottom: 25px;">
+                                This is a friendly reminder to visit QuizMaster and challenge yourself with some quizzes!
+                            </p>
+                            
+                            <div style="background: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                                <h3 style="color: #2d3748; margin-top: 0; font-size: 18px;">🎯 Available Quizzes</h3>
+                                <table style="width: 100%; border-collapse: collapse;">
+                                    {quiz_list_html}
+                                </table>
+                            </div>
+                            
+                            <div style="background: #e6fffa; border-left: 4px solid #38b2ac; padding: 15px; margin: 20px 0;">
+                                <p style="margin: 0; color: #234e52;">
+                                    <strong>📊 Total Available:</strong> {len(available_quizzes)} quizzes ready for you to attempt!
+                                </p>
+                            </div>
+                            
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="#" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: 500; display: inline-block; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                                    🚀 Start Quiz Now
+                                </a>
+                            </div>
+                            
+                            <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 30px; text-align: center;">
+                                <p style="color: #718096; font-size: 14px; margin: 0;">
+                                    Best regards,<br>
+                                    <strong style="color: #4a5568;">QuizMaster Team</strong>
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 20px; color: #a0aec0; font-size: 12px;">
+                            <p>© 2025 QuizMaster. Keep learning, keep growing! 🌟</p>
+                        </div>
+                    </body>
+                    </html>
+                    """
+                    
+                    # Plain text fallback
+                    plain_text = f"""Hello {user.username},
+
+This is a reminder to visit QuizMaster and take some quizzes!
+
+Available Quizzes:
+"""
+                    for quiz in available_quizzes[:5]:
+                        plain_text += f"- {quiz['name']} ({quiz['subject']} - {quiz['chapter']})\n"
+                    
+                    plain_text += f"""
+
+We have {len(available_quizzes)} quizzes available for you to attempt.
+
+Visit QuizMaster now and challenge yourself!
+
+Best regards,
+QuizMaster Team"""
+
+                    # Send email using Flask-Mail
+                    with app.app_context():  # Need app context for mail
+                        msg = Message(
+                            subject=subject,
+                            recipients=[user.email],
+                            body=plain_text,
+                            html=html_body
+                        )
+                        mail.send(msg)
+                    
                         success_count += 1
                         logger.info(f"Successfully sent reminder to {user.email}")
-                    else:
-                        logger.warning(f"Failed to send reminder to {user.email}")
                         
                     # Optional: Update last reminder sent
                     if hasattr(user, 'last_reminder_sent'):
                         user.last_reminder_sent = datetime.utcnow()
-                        db.session.commit()
-                        
+                        session.commit()
+                    
                 except Exception as e:
                     logger.error(f"Error sending reminder to {user.email}: {str(e)}")
             
@@ -227,33 +289,24 @@ def send_daily_reminders(self):
                 'message': f'Daily reminders sent to {success_count} of {len(inactive_users)} users',
                 'timestamp': datetime.utcnow().isoformat()
             }
-    
+        finally:
+            # Always close the session
+            session.close()
+        
     except Exception as e:
         logger.error(f"Failed to send daily reminders: {str(e)}")
         raise
 
-@celery.task(bind=True)
-def send_monthly_reports(self):
+@celery.task
+def send_monthly_reports():
     """
     Send monthly activity reports to all users
     """
     try:
-        from flask import Flask
-        from application.config import LocalDevelopmentConfig
-        from application.simple_email import send_monthly_report
+        # Create a safe database session
+        session = get_safe_session()
         
-        # Create a Flask app for this task
-        app = Flask(__name__)
-        app.config.from_object(LocalDevelopmentConfig)
-        
-        # Explicitly set the database URI
-        BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
-        DB_PATH = os.path.join(BASE_DIR, 'instance', 'database.sqlite3')
-        app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
-        
-        db.init_app(app)
-        
-        with app.app_context():
+        try:
             # Calculate the previous month's date range
             today = datetime.utcnow()
             first_day_of_current_month = datetime(today.year, today.month, 1)
@@ -265,15 +318,23 @@ def send_monthly_reports(self):
             
             logger.info(f"Generating monthly reports for {previous_month_name} {previous_month_year}")
             
+            # Test simple count query first
+            try:
+                user_count = session.query(Users).count()
+                logger.info(f"Worker process - SQLAlchemy Users count: {user_count}")
+            except Exception as e:
+                logger.error(f"Worker process - SQLAlchemy count query failed: {e}")
+                raise
+            
             # Get all active users
-            active_users = Users.query.filter_by(is_active=True).all()
+            active_users = session.query(Users).filter_by(is_active=True).all()
             
             # Generate and send reports for each user
             success_count = 0
             for user in active_users:
                 try:
                     # Get quiz attempts for the previous month
-                    user_scores = db.session.query(Scores).filter(
+                    user_scores = session.query(Scores).filter(
                         Scores.user_id == user.id,
                         Scores.time_stamp_of_attempt >= first_day_of_previous_month,
                         Scores.time_stamp_of_attempt < first_day_of_current_month
@@ -285,32 +346,157 @@ def send_monthly_reports(self):
                     if total_quizzes > 0:
                         average_score = sum(score.percentage for score in user_scores) / total_quizzes
                         best_score = max((score.percentage for score in user_scores), default=0)
+                        passed_quizzes = sum(1 for score in user_scores if score.passed)
                     else:
                         average_score = 0
                         best_score = 0
+                        passed_quizzes = 0
                     
-                    # Prepare report data
-                    report_data = {
-                        'month': previous_month_name,
-                        'year': previous_month_year,
-                        'total_quizzes': total_quizzes,
-                        'average_score': average_score,
-                        'best_score': best_score
-                    }
+                    # Prepare email content
+                    subject = f"Monthly Quiz Report - {previous_month_name} {previous_month_year}"
                     
-                    # Send monthly report email
-                    result = send_monthly_report(
-                        user_email=user.email,
-                        user_name=user.username,
-                        report_data=report_data
-                    )
-                    
-                    if result:
-                        success_count += 1
-                        logger.info(f"Successfully sent monthly report to {user.email}")
+                    # Calculate pass rate and performance message
+                    if total_quizzes > 0:
+                        pass_rate = (passed_quizzes / total_quizzes) * 100
+                        
+                        if average_score >= 80:
+                            performance_message = "🎉 Excellent performance! Keep up the great work!"
+                            performance_color = "#10b981"
+                            performance_bg = "#d1fae5"
+                        elif average_score >= 60:
+                            performance_message = "👍 Good job! There's room for improvement."
+                            performance_color = "#f59e0b"
+                            performance_bg = "#fef3c7"
+                        else:
+                            performance_message = "📚 Consider reviewing the topics and practicing more."
+                            performance_color = "#ef4444"
+                            performance_bg = "#fee2e2"
                     else:
-                        logger.warning(f"Failed to send monthly report to {user.email}")
-                
+                        pass_rate = 0
+                        performance_message = "We noticed you didn't attempt any quizzes this month. Why not give it a try?"
+                        performance_color = "#6b7280"
+                        performance_bg = "#f9fafb"
+                    
+                    # HTML email template
+                    html_body = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="UTF-8">
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                        <title>Monthly Quiz Report</title>
+                    </head>
+                    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                            <h1 style="margin: 0; font-size: 28px; font-weight: 300;">📊 QuizMaster</h1>
+                            <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Monthly Performance Report</p>
+                            <p style="margin: 5px 0 0 0; font-size: 20px; font-weight: 500;">{previous_month_name} {previous_month_year}</p>
+                        </div>
+                        
+                        <div style="background: white; padding: 30px; border-radius: 0 0 10px 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                            <h2 style="color: #4a5568; margin-top: 0;">Dear {user.username}! 👋</h2>
+                            
+                            <p style="font-size: 16px; color: #4a5568; margin-bottom: 25px;">
+                                Here is your monthly quiz performance report for <strong>{previous_month_name} {previous_month_year}</strong>:
+                            </p>
+                            
+                            <div style="background: #f7fafc; padding: 25px; border-radius: 12px; margin: 25px 0;">
+                                <h3 style="color: #2d3748; margin-top: 0; font-size: 20px; text-align: center; margin-bottom: 20px;">📈 Quiz Statistics</h3>
+                                
+                                <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+                                    <div style="flex: 1; min-width: 140px; background: white; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid #e2e8f0;">
+                                        <div style="font-size: 24px; font-weight: bold; color: #667eea;">{total_quizzes}</div>
+                                        <div style="font-size: 12px; color: #718096; margin-top: 5px;">Total Attempted</div>
+                                    </div>
+                                    
+                                    <div style="flex: 1; min-width: 140px; background: white; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid #e2e8f0;">
+                                        <div style="font-size: 24px; font-weight: bold; color: #10b981;">{passed_quizzes}</div>
+                                        <div style="font-size: 12px; color: #718096; margin-top: 5px;">Quizzes Passed</div>
+                                    </div>
+                                    
+                                    <div style="flex: 1; min-width: 140px; background: white; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid #e2e8f0;">
+                                        <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">{average_score:.1f}%</div>
+                                        <div style="font-size: 12px; color: #718096; margin-top: 5px;">Average Score</div>
+                                    </div>
+                                    
+                                    <div style="flex: 1; min-width: 140px; background: white; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid #e2e8f0;">
+                                        <div style="font-size: 24px; font-weight: bold; color: #8b5cf6;">{best_score:.1f}%</div>
+                                        <div style="font-size: 12px; color: #718096; margin-top: 5px;">Best Score</div>
+                                    </div>
+                                    
+                                    {f'<div style="flex: 1; min-width: 140px; background: white; padding: 15px; border-radius: 8px; text-align: center; border: 2px solid #e2e8f0;"><div style="font-size: 24px; font-weight: bold; color: #06b6d4;">{pass_rate:.1f}%</div><div style="font-size: 12px; color: #718096; margin-top: 5px;">Pass Rate</div></div>' if total_quizzes > 0 else ""}
+                                </div>
+                            </div>
+                            
+                            <div style="background: {performance_bg}; border-left: 4px solid {performance_color}; padding: 20px; margin: 25px 0; border-radius: 8px;">
+                                <p style="margin: 0; color: {performance_color}; font-weight: 500; font-size: 16px;">
+                                    {performance_message}
+                                </p>
+                            </div>
+                            
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="#" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 25px; font-weight: 500; display: inline-block; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+                                    📚 Continue Learning
+                                </a>
+                            </div>
+                            
+                            <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 30px; text-align: center;">
+                                <p style="color: #718096; font-size: 14px; margin: 0;">
+                                    Best regards,<br>
+                                    <strong style="color: #4a5568;">QuizMaster Team</strong>
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div style="text-align: center; margin-top: 20px; color: #a0aec0; font-size: 12px;">
+                            <p>© 2025 QuizMaster. Keep learning, keep growing! 🌟</p>
+                        </div>
+                    </body>
+                    </html>
+                    """
+                    
+                    # Plain text fallback
+                    plain_text = f"""Dear {user.username},
+
+Here is your monthly quiz performance report for {previous_month_name} {previous_month_year}:
+
+📊 QUIZ STATISTICS:
+- Total Quizzes Attempted: {total_quizzes}
+- Quizzes Passed: {passed_quizzes}
+- Average Score: {average_score:.1f}%
+- Best Score: {best_score:.1f}%
+"""
+                    if total_quizzes > 0:
+                        plain_text += f"- Pass Rate: {pass_rate:.1f}%\n\n"
+                        
+                        if average_score >= 80:
+                            plain_text += "🎉 Excellent performance! Keep up the great work!\n"
+                        elif average_score >= 60:
+                            plain_text += "👍 Good job! There's room for improvement.\n"
+                        else:
+                            plain_text += "📚 Consider reviewing the topics and practicing more.\n"
+                    else:
+                        plain_text += "We noticed you didn't attempt any quizzes this month. Why not give it a try?\n"
+                    
+                    plain_text += """
+Visit QuizMaster to continue your learning journey!
+
+Best regards,
+QuizMaster Team"""
+
+                    # Send monthly report email using Flask-Mail
+                    with app.app_context():  # Need app context for mail
+                        msg = Message(
+                            subject=subject,
+                            recipients=[user.email],
+                            body=plain_text,
+                            html=html_body
+                        )
+                        mail.send(msg)
+                    
+                    success_count += 1
+                    logger.info(f"Successfully sent monthly report to {user.email}")
+                    
                 except Exception as e:
                     logger.error(f"Error generating monthly report for {user.email}: {str(e)}")
             
@@ -321,7 +507,10 @@ def send_monthly_reports(self):
                 'year': previous_month_year,
                 'timestamp': datetime.utcnow().isoformat()
             }
-    
+        finally:
+            # Always close the session
+            session.close()
+        
     except Exception as e:
         logger.error(f"Failed to send monthly reports: {str(e)}")
-        raise
+        raise 

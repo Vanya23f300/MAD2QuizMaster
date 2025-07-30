@@ -26,7 +26,7 @@
             <select 
               v-model="selectedSubject" 
               class="form-select me-2"
-              @change="fetchChapters"
+              @change="onSubjectChange"
             >
               <option :value="null">All Subjects</option>
               <option 
@@ -66,29 +66,8 @@
       <!-- Quizzes List -->
       <div class="quizzes-list glass">
         <div class="card-body">
-          <!-- Loading State -->
-          <div v-if="loading" class="text-center py-5">
-            <div class="spinner-border text-primary mb-3"></div>
-            <p class="text-muted">Loading quizzes...</p>
-          </div>
-
-          <!-- Error State -->
-          <div v-else-if="error" class="alert alert-danger glass-alert">
-            <i class="bi bi-exclamation-triangle me-2"></i>
-            {{ error }}
-          </div>
-
-          <!-- Empty State -->
-          <div v-else-if="quizzes.length === 0" class="empty-state text-center py-5">
-            <i class="bi bi-clipboard-check display-1 text-muted mb-3"></i>
-            <h4 class="text-light">No Quizzes Found</h4>
-            <p class="text-muted">
-              Create your first quiz by selecting a chapter and clicking "Create Quiz"
-            </p>
-    </div>
-
-    <!-- Quizzes Table -->
-          <div v-else class="table-responsive">
+          <!-- Quizzes Table - Always Show Something -->
+          <div class="table-responsive">
             <table class="table table-dark table-glass">
               <thead>
                 <tr>
@@ -103,7 +82,37 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="quiz in quizzes" :key="quiz.id" class="table-row-glass">
+                <!-- Loading State -->
+                <tr v-if="loading">
+                  <td colspan="8" class="text-center py-4">
+                    <div class="spinner-border text-primary mb-3"></div>
+                    <p class="text-light">Loading quizzes...</p>
+                  </td>
+                </tr>
+                
+                <!-- Error State -->
+                <tr v-else-if="error">
+                  <td colspan="8" class="text-center py-4">
+                    <div class="alert alert-danger glass-alert d-inline-block">
+                      <i class="bi bi-exclamation-triangle me-2"></i>
+                      {{ error }}
+                    </div>
+                  </td>
+                </tr>
+                
+                <!-- Empty State -->
+                <tr v-else-if="quizzes.length === 0">
+                  <td colspan="8" class="text-center py-4">
+                    <i class="bi bi-clipboard-check display-1 text-muted mb-3"></i>
+                    <h4 class="text-light">No Quizzes Found</h4>
+                    <p class="text-muted">
+                      Create your first quiz by selecting a chapter and clicking "Create Quiz"
+                    </p>
+                  </td>
+                </tr>
+                
+                <!-- Quiz Rows -->
+                <tr v-else v-for="quiz in quizzes" :key="quiz.id" class="table-row-glass">
                   <td>
                     <span class="badge bg-primary">{{ quiz.id }}</span>
                   </td>
@@ -113,9 +122,9 @@
                     <small class="text-light">{{ quiz.description || 'No description' }}</small>
                   </td>
                   <td>
-                    <span class="text-light">{{ quiz.chapter_name }}</span>
+                    <span class="text-light">{{ quiz.chapter_name || 'N/A' }}</span>
                     <br>
-                    <small class="text-light">{{ quiz.subject_name }}</small>
+                    <small class="text-light">{{ quiz.subject_name || 'N/A' }}</small>
                   </td>
                   <td>
                     <span class="text-light">
@@ -123,7 +132,7 @@
                     </span>
                   </td>
                   <td>
-                    <span class="badge bg-info">{{ quiz.time_duration }} min</span>
+                    <span class="badge bg-info">{{ quiz.time_duration || 0 }} min</span>
                   </td>
                   <td>
                     <span class="badge bg-secondary">{{ quiz.questions_count || 0 }}</span>
@@ -488,11 +497,11 @@
 </template>
 
 <script>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import Modal from 'bootstrap/js/dist/modal'
 import quizService from '@/services/quizService'
-import chapterService from '@/services/chapter-service'
+import chapterService from '@/services/chapterService'
 import subjectService from '@/services/subjectService'
 
 export default {
@@ -504,13 +513,13 @@ export default {
     const subjects = ref([])
     const selectedChapter = ref(null)
     const selectedSubject = ref(null)
-    const loading = ref(false)
+    const loading = ref(true)  // Start with loading state
     const error = ref(null)
     const isEditing = ref(false)
     const currentQuiz = ref({
       name: '',
       description: '',
-      chapter_id: '',
+      chapter_id: null,
       date_of_quiz: '',
       time_duration: 60,
       passing_score: 60.0,
@@ -525,55 +534,50 @@ export default {
     const loadingQuestions = ref(false)
     const questionsError = ref(null)
 
-    const isFormValid = computed(() => 
-      currentQuiz.value.name && 
-      currentQuiz.value.chapter_id
-    )
+    // Initialize with default quizzes for immediate display
+    quizzes.value = [
+      {
+        id: 'loading-1',
+        name: 'Loading quizzes...',
+        description: 'Please wait while we fetch quizzes',
+        chapter_name: '...',
+        subject_name: '...',
+        date_of_quiz: null,
+        time_duration: 0,
+        is_active: true,
+        questions_count: 0
+      }
+    ]
 
     const fetchSubjects = async () => {
-      loading.value = true
       try {
-        const response = await subjectService.getSubjects()
-        subjects.value = response
-        loading.value = false
+        const data = await subjectService.getSubjects()
+        subjects.value = data || []
+        console.log('✅ Subjects loaded:', subjects.value.length)
+        return true
       } catch (err) {
         console.error('Failed to fetch subjects:', err)
-        error.value = 'Failed to load subjects'
-        loading.value = false
+        subjects.value = []
+        return false
       }
     }
 
     const fetchChapters = async () => {
-      const subjectId = currentQuiz.value?.subject_id || selectedSubject.value
+      const subjectId = selectedSubject.value
       
       if (!subjectId) {
         chapters.value = []
         return
       }
 
-      loading.value = true
       try {
         const response = await chapterService.getChaptersBySubject(subjectId)
-        if (response.success) {
-          chapters.value = response.data
-          console.log('✅ Chapters loaded:', chapters.value)
-        } else {
-          console.error('Failed to fetch chapters:', response.message)
-          error.value = response.message
-        }
+        chapters.value = response.data || []
+        console.log('✅ Chapters loaded:', chapters.value.length)
       } catch (err) {
         console.error('Failed to fetch chapters:', err)
-        error.value = 'Failed to load chapters'
-      } finally {
-        loading.value = false
+        chapters.value = []
       }
-    }
-
-    const onSubjectChange = () => {
-      // Clear the selected chapter when subject changes
-      currentQuiz.value.chapter_id = null
-      // Fetch chapters for the new subject
-      fetchChapters()
     }
 
     const fetchQuizzes = async () => {
@@ -582,51 +586,44 @@ export default {
 
       try {
         console.log('🔍 Fetching quizzes for chapter:', selectedChapter.value)
-        const quizzesData = await quizService.getQuizzes(selectedChapter.value)
-        quizzes.value = quizzesData
-        console.log('✅ Quizzes loaded:', quizzes.value)
+        const data = await quizService.getQuizzes(selectedChapter.value)
+        quizzes.value = data || []
+        console.log('✅ Quizzes loaded:', quizzes.value.length)
       } catch (err) {
         console.error('❌ Failed to fetch quizzes:', err)
-        error.value = err.response?.data?.message || 'Failed to load quizzes'
+        // Set default quizzes if API fails
+        quizzes.value = []
+        error.value = 'Failed to load quizzes. Please try again.'
       } finally {
         loading.value = false
       }
     }
 
     const goToAdminDashboard = () => {
-      router.push('/admin')
+      router.push('/admin/dashboard')
     }
 
     const goToQuestions = (quizId) => {
-      // Clean up any open modals and their backdrops
-      const modals = document.querySelectorAll('.modal');
-      modals.forEach(modalEl => {
-        const modal = Modal.getInstance(modalEl);
-        if (modal) {
-          modal.hide();
-        }
-      });
-      // Remove any lingering modal backdrops
-      document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
-        backdrop.remove();
-      });
-      // Remove modal-open class from body
+      // Close any open modals
+      document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
       document.body.classList.remove('modal-open');
       document.body.style.overflow = '';
       document.body.style.paddingRight = '';
-
-      router.push(`/admin/quizzes/${quizId}/questions`);
+      
+      // Navigate to questions
+      router.push(`/admin/quizzes/${quizId}/questions`)
     }
 
     const showCreateQuizModal = () => {
       isEditing.value = false
       error.value = null
       
+      // Reset quiz form with defaults
       currentQuiz.value = {
         name: '',
         description: '',
-        subject_id: null,
-        chapter_id: null,
+        subject_id: selectedSubject.value || null,
+        chapter_id: selectedChapter.value || null,
         date_of_quiz: '',
         time_duration: 60,
         passing_score: 60.0,
@@ -634,56 +631,44 @@ export default {
         is_active: true
       }
       
-      // Clear chapters when starting fresh
-      chapters.value = []
+      // Ensure Bootstrap is available
+      if (typeof Modal === 'undefined') {
+        console.error('Bootstrap Modal not available')
+        alert('Could not open create quiz form. Please refresh the page.')
+        return
+      }
       
-      console.log('📝 Opening create quiz modal')
-      const modal = new Modal(document.getElementById('quizModal'))
-      modal.show()
+      // Show the modal with error handling
+      try {
+        // First make sure the element exists
+        const modalElement = document.getElementById('quizModal')
+        if (!modalElement) {
+          throw new Error('Modal element not found')
+        }
+        
+        const modal = new Modal(modalElement)
+        modal.show()
+      } catch (err) {
+        console.error('Could not show modal:', err)
+        alert('Could not open create quiz form. Please refresh the page.')
+      }
     }
 
-    const editQuiz = async (quiz) => {
+    const editQuiz = (quiz) => {
       isEditing.value = true
       error.value = null
       
-      console.log('📝 Editing quiz:', quiz)
-      
-      // Find the subject_id for this quiz's chapter
-      let subjectId = null
-      if (quiz.chapter_id) {
-        const chapter = chapters.value.find(c => c.id === quiz.chapter_id)
-        if (chapter) {
-          subjectId = chapter.subject_id
-        } else {
-          // Need to fetch chapters to find the subject
-          for (const subject of subjects.value) {
-            try {
-              const response = await chapterService.getChaptersBySubject(subject.id)
-              if (response.success) {
-                const foundChapter = response.data.find(c => c.id === quiz.chapter_id)
-                if (foundChapter) {
-                  subjectId = subject.id
-                  chapters.value = response.data
-                  break
-                }
-              }
-            } catch (err) {
-              console.error('Error finding chapter subject:', err)
-            }
-          }
-        }
-      }
-      
       currentQuiz.value = { 
         ...quiz,
-        date_of_quiz: quiz.date_of_quiz || '',
-        subject_id: subjectId
+        date_of_quiz: quiz.date_of_quiz || ''
       }
       
-      console.log('📝 Edit form data:', currentQuiz.value)
-      
-      const modal = new Modal(document.getElementById('quizModal'))
-      modal.show()
+      try {
+        const modal = new Modal(document.getElementById('quizModal'))
+        modal.show()
+      } catch (err) {
+        console.error('Could not show modal:', err)
+      }
     }
 
     const saveQuiz = async () => {
@@ -696,23 +681,8 @@ export default {
         return
       }
       
-      if (!currentQuiz.value.subject_id) {
-        error.value = 'Please select a subject'
-        return
-      }
-      
       if (!currentQuiz.value.chapter_id) {
         error.value = 'Please select a chapter'
-        return
-      }
-
-      if (currentQuiz.value.time_duration < 10 || currentQuiz.value.time_duration > 180) {
-        error.value = 'Duration must be between 10 and 180 minutes'
-        return
-      }
-
-      if (currentQuiz.value.passing_score < 0 || currentQuiz.value.passing_score > 100) {
-        error.value = 'Passing score must be between 0 and 100'
         return
       }
 
@@ -734,15 +704,16 @@ export default {
         await fetchQuizzes()
         
         // Close modal
-        const modal = Modal.getInstance(document.getElementById('quizModal'))
-        modal?.hide()
-        
-        // Success message could be added here
-        console.log(`✅ Quiz ${isEditing.value ? 'updated' : 'created'} successfully!`)
+        try {
+          const modal = Modal.getInstance(document.getElementById('quizModal'))
+          if (modal) modal.hide()
+        } catch (err) {
+          console.error('Could not close modal:', err)
+        }
         
       } catch (err) {
         console.error('❌ Failed to save quiz:', err)
-        error.value = err.response?.data?.message || err.message || 'Failed to save quiz'
+        error.value = 'Failed to save quiz. Please try again.'
       } finally {
         loading.value = false
       }
@@ -750,8 +721,12 @@ export default {
 
     const triggerDeleteQuiz = (quizId) => {
       quizToDelete.value = quizId
-      const modal = new Modal(document.getElementById('deleteConfirmModal'))
-      modal.show()
+      try {
+        const modal = new Modal(document.getElementById('deleteConfirmModal'))
+        modal.show()
+      } catch (err) {
+        console.error('Could not show delete modal:', err)
+      }
     }
 
     const confirmDeleteQuiz = async () => {
@@ -765,11 +740,15 @@ export default {
         await fetchQuizzes()
         
         // Close modal
-        const modal = Modal.getInstance(document.getElementById('deleteConfirmModal'))
-        modal.hide()
+        try {
+          const modal = Modal.getInstance(document.getElementById('deleteConfirmModal'))
+          if (modal) modal.hide()
+        } catch (err) {
+          console.error('Could not close modal:', err)
+        }
       } catch (err) {
         console.error('Failed to delete quiz:', err)
-        error.value = err.response?.data?.message || 'Failed to delete quiz'
+        error.value = 'Failed to delete quiz. Please try again.'
       } finally {
         loading.value = false
         quizToDelete.value = null
@@ -778,16 +757,7 @@ export default {
 
     const formatDate = (dateString) => {
       if (!dateString) return 'N/A'
-      return new Date(dateString).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      })
-    }
-
-    const getChapterName = (chapterId) => {
-      const chapter = chapters.value.find(c => c.id === chapterId)
-      return chapter ? chapter.name : 'Unknown Chapter'
+      return new Date(dateString).toLocaleDateString()
     }
 
     const viewQuestions = async (quiz) => {
@@ -798,27 +768,60 @@ export default {
 
       try {
         const questions = await quizService.getQuizQuestions(quiz.id);
-        quizQuestions.value = questions;
-        const modal = new Modal(document.getElementById('questionsModal'));
-        modal.show();
-
-        // Add event listener for when modal is hidden
-        document.getElementById('questionsModal').addEventListener('hidden.bs.modal', async () => {
-          // Refresh quiz data
-          await fetchQuizzes();
-        }, { once: true }); // Use once: true to ensure the listener is removed after execution
+        quizQuestions.value = questions || [];
+        
+        try {
+          const modal = new Modal(document.getElementById('questionsModal'));
+          modal.show();
+        } catch (err) {
+          console.error('Could not show questions modal:', err)
+        }
       } catch (err) {
         console.error('Failed to fetch questions:', err);
-        questionsError.value = err.response?.data?.message || 'Failed to load questions';
+        questionsError.value = 'Failed to load questions';
       } finally {
         loadingQuestions.value = false;
       }
     };
+    
+    const onSubjectChange = async () => {
+      // Reset chapter selection
+      selectedChapter.value = null;
+      chapters.value = [];
+      
+      // Fetch chapters for the selected subject
+      if (selectedSubject.value) {
+        await fetchChapters();
+      }
+      
+      // Refresh quizzes based on new filters
+      await fetchQuizzes();
+    };
 
     // Initialize data
-    onMounted(() => {
-      fetchSubjects()
-      fetchQuizzes() // Load all quizzes initially
+    onMounted(async () => {
+      try {
+        console.log('📋 Initializing QuizzesView component...')
+        
+        // Start with loading state
+        loading.value = true
+        error.value = null
+        
+        // Fetch subjects in background
+        fetchSubjects().catch(err => {
+          console.error('Failed to load subjects:', err)
+          subjects.value = []
+        })
+        
+        // Fetch initial quizzes
+        await fetchQuizzes()
+      } catch (err) {
+        console.error('💥 Error during component initialization:', err)
+        error.value = 'Could not load quiz data. Please try refreshing the page.'
+      } finally {
+        // Ensure loading state is always cleared
+        loading.value = false
+      }
     })
 
     return {
@@ -831,12 +834,10 @@ export default {
       error,
       isEditing,
       currentQuiz,
-      isFormValid,
       fetchSubjects,
       fetchChapters,
       onSubjectChange,
       fetchQuizzes,
-      getChapterName,
       showCreateQuizModal,
       editQuiz,
       saveQuiz,
@@ -940,6 +941,9 @@ export default {
   border: 1px solid rgba(220, 53, 69, 0.3);
   backdrop-filter: blur(10px);
   border-radius: 0.5rem;
+  color: #fff;
+  margin: 0 auto;
+  max-width: 80%;
 }
 
 .empty-state {

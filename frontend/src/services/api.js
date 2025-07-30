@@ -1,96 +1,80 @@
 import axios from 'axios'
-import AuthService from './auth'
 
-const apiClient = axios.create({
-  baseURL: 'http://localhost:8000/api',
+// Create a custom axios instance
+const api = axios.create({
+  baseURL: 'http://localhost:8000',  // Use port 8000 to match backend
+  timeout: 10000,
   headers: {
-    'Content-Type': 'application/json'
-  },
-  timeout: 10000, // 10 second timeout
-  // Retry configuration
-  retry: 3,
-  retryDelay: (retryCount) => {
-    return retryCount * 1000 // 1s, 2s, 3s
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
   }
 })
 
-// Request interceptor for adding token
-apiClient.interceptors.request.use(
+// Add a request interceptor for authentication
+api.interceptors.request.use(
   config => {
+    // Get the token from localStorage
     const token = localStorage.getItem('token')
+    
+    // Add token to all requests if available
     if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`
+      config.headers.Authorization = `Bearer ${token}`
+      console.log('Added token to request:', config.url, token ? `${token.substring(0, 10)}...` : 'No token')
+    } else {
+      console.warn('No token available for request:', config.url)
     }
-    console.log('API Request:', config.method.toUpperCase(), config.url, config.data)
+    
+    // Log all API requests for debugging
+    console.log(`📤 API Request: ${config.method.toUpperCase()} ${config.url}`, config)
+    
     return config
   },
   error => {
-    console.error('Request setup error:', error)
+    console.error('📤 API Request Error:', error)
     return Promise.reject(error)
   }
 )
 
-// Response interceptor for error handling
-apiClient.interceptors.response.use(
+// Add a response interceptor for handling common responses
+api.interceptors.response.use(
   response => {
-    console.log('API Response:', response.status, response.data)
+    // Log successful responses
+    console.log(`📥 API Response (${response.config.url}):`, response.data)
+    
     return response
   },
-  async error => {
-    console.error('API Error:', error.response || error)
-    
-    // Get the original request configuration
-    const originalRequest = error.config
-
-    // Handle retry logic for network errors or 5xx responses
-    if ((error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK' || 
-        (error.response && error.response.status >= 500)) && 
-        originalRequest && !originalRequest._retry &&
-        originalRequest.retry > 0) {
-      
-      originalRequest._retry = true
-      originalRequest.retry--
-
-      // Wait for the retry delay
-      await new Promise(resolve => 
-        setTimeout(resolve, originalRequest.retryDelay(originalRequest.retry))
-      )
-
-      // Retry the request
-      return apiClient(originalRequest)
-    }
-    
-    // Handle specific error scenarios
+  error => {
     if (error.response) {
-      // The request was made and the server responded with a status code
-      switch (error.response.status) {
-        case 401: // Unauthorized
-          // Only logout if not already on login page and token exists
-          if (window.location.pathname !== '/login' && localStorage.getItem('token')) {
-            AuthService.logout()
-            window.location.href = '/login'
-          }
-          break
-        case 403: // Forbidden
-          console.error('Access denied:', error.response.data?.message)
-          break
-        case 404: // Not Found
-          console.error('Resource not found:', error.response.data?.message)
-          break
-        case 500: // Internal Server Error
-          console.error('Server error:', error.response.data?.message)
-          break
+      // Log detailed error information
+      console.error(`📥 API Error (${error.config?.url}):`, {
+        status: error.response.status,
+        data: error.response.data,
+        headers: error.response.headers
+      })
+      
+      // Handle authentication errors
+      if (error.response.status === 401) {
+        console.warn('Authentication error - redirecting to login')
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        localStorage.removeItem('isAuthenticated')
+        localStorage.removeItem('isAdmin')
+        
+        // Check if we're already on the login page to avoid redirect loop
+        if (!window.location.href.includes('/login')) {
+          window.location = '/login'
+        }
       }
-    } else if (error.code === 'ECONNABORTED') {
-      console.error('Request timeout - server took too long to respond')
-    } else if (error.code === 'ERR_NETWORK') {
-      console.error('Network error - please check your internet connection')
+    } else if (error.request) {
+      // Request was made but no response was received
+      console.error('📥 API No Response:', error.request)
     } else {
-      console.error('Error setting up request:', error.message)
+      // Something else caused the error
+      console.error('📥 API Setup Error:', error.message)
     }
     
     return Promise.reject(error)
   }
 )
 
-export default apiClient
+export default api

@@ -2,7 +2,6 @@ from flask import jsonify, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from application.models import Users, Quizzes, Chapters, Subjects, Scores
 from application.database import db
-from application.celery_tasks import generate_user_quiz_export
 from datetime import datetime
 import os
 import logging
@@ -52,6 +51,7 @@ def register_export_routes(app):
             
             # Queue the export task
             logger.info(f"Queueing export task for user {user_id}")
+            from application.celery_tasks import generate_user_quiz_export
             task = generate_user_quiz_export.delay(user_id, filename)
             logger.info(f"Task created with ID: {task.id}")
             
@@ -76,6 +76,7 @@ def register_export_routes(app):
         """
         try:
             logger.info(f"Status check for task: {task_id}")
+            from application.celery_tasks import generate_user_quiz_export
             task = generate_user_quiz_export.AsyncResult(task_id)
             
             if task.state == 'PENDING':
@@ -183,4 +184,4 @@ def register_export_routes(app):
             'message': 'Exports API is operational'
         }), 200
 
-    return app
+    return app 

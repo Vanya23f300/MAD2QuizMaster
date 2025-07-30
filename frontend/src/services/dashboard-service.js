@@ -1,90 +1,160 @@
 import api from './api'
 
-class DashboardService {
+const dashboardService = {
   /**
-   * Fetch dashboard statistics
-   * @returns {Promise} Dashboard statistics
+   * Get dashboard statistics for admin
    */
   async getDashboardStats() {
     try {
-      console.log('🔍 Fetching Dashboard Stats...')
-      
-      const response = await api.get('/dashboard/stats')
-      
-      console.log('📊 Dashboard Stats Raw Response:', response.data)
-      
-      // Ensure data is always present and has default values
-      const stats = {
-        totalUsers: response.data.totalUsers || 0,
-        activeUsers: response.data.activeUsers || 0,
-        userGrowth: response.data.userGrowth || 0,
-        totalQuizzes: response.data.totalQuizzes || 0,
-        avgQuizCompletion: response.data.avgQuizCompletion || 0
-      }
-      
-      console.log('📈 Processed Dashboard Stats:', stats)
-      
+      const response = await api.get('/api/dashboard/stats')
       return {
         success: true,
-        data: stats,
-        message: 'Dashboard statistics retrieved successfully'
+        data: {
+          totalUsers: response.data.users?.total || 0,
+          activeUsers: response.data.users?.active || 0,
+          adminUsers: response.data.users?.admin || 0,
+          totalSubjects: response.data.subjects?.total || 0,
+          activeSubjects: response.data.subjects?.active || 0,
+          totalChapters: response.data.chapters?.total || 0,
+          totalQuizzes: response.data.quizzes?.total || 0,
+          activeQuizzes: response.data.quizzes?.active || 0,
+          totalAttempts: response.data.scores?.total_attempts || 0,
+          avgScore: response.data.scores?.avg_score || 0,
+          avgQuizCompletion: response.data.scores?.avg_score || 0,
+          userGrowth: 12 // Placeholder for now
+        }
       }
     } catch (error) {
-      console.error('❌ Fetching Dashboard Stats Error:', error)
-      
-      // Detailed error logging
-      if (error.response) {
-        console.error('Response Error Details:', {
-          status: error.response.status,
-          data: error.response.data,
-          headers: error.response.headers
-        })
-      }
-      
+      console.error('Dashboard stats error:', error)
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to retrieve dashboard statistics',
-        error: error.response?.data
+        message: error.response?.data?.message || 'Failed to fetch dashboard statistics',
+        data: null
       }
     }
-  }
+  },
 
   /**
-   * Fetch recent platform activities
-   * @returns {Promise} Recent activities
+   * Get recent activities for admin dashboard
    */
   async getRecentActivities() {
     try {
-      console.log('🔍 Fetching Recent Activities...')
+      const response = await api.get('/api/dashboard/activities')
       
-      const response = await api.get('/dashboard/activities')
-      
-      console.log('📊 Recent Activities Raw Response:', response.data)
-      
+      // Format the activities data
+      const activities = response.data.map((activity, index) => ({
+        id: index + 1,
+        description: activity.description || 'Unknown activity',
+        timestamp: activity.timestamp || new Date().toISOString()
+      }))
+
       return {
         success: true,
-        data: response.data,
-        message: 'Recent activities retrieved successfully'
+        data: activities
       }
     } catch (error) {
-      console.error('❌ Fetching Recent Activities Error:', error)
+      console.error('Recent activities error:', error)
       
-      // Detailed error logging
+      // Return empty array on error
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to fetch recent activities',
+        data: []
+      }
+    }
+  },
+
+  /**
+   * Get user performance statistics
+   */
+  async getUserPerformance() {
+    try {
+      console.log('Fetching user performance data')
+      
+      // Ensure we have a token
+      // const token = localStorage.getItem('token')
+      // if (!token) {
+      //   console.error('No token available for authentication')
+      //   throw new Error('Authentication token is required')
+      // }
+      
+      const response = await api.get('/api/dashboard/user/performance')
+      console.log('User performance response:', response.data)
+      
+      // Use only real data from the API
+      //if (!response.data || !response.data.stats) {
+       // console.warn('API returned invalid format, using empty stats object')
+      //  return {
+       //   success: true,
+         // data: {
+      //  /     stats: {
+      //  /       quizzes_taken: 0,
+      //  /      average_score: 0,
+      //  /      pass_rate: 0,
+           //   time_spent: 0
+      //      }
+      //    }
+      //  }
+      //   }
+      
+      // Return the real data from API
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('User performance error:', error)
+      // Log more detailed error info
       if (error.response) {
-        console.error('Response Error Details:', {
+        console.error('Response details:', {
           status: error.response.status,
           data: error.response.data,
           headers: error.response.headers
         })
+      } else if (error.request) {
+        console.error('No response received:', error.request)
+      } else {
+        console.error('Error setting up request:', error.message)
       }
       
+      // Return empty data on error
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to retrieve recent activities',
-        error: error.response?.data
+        message: error.response?.data?.message || 'Failed to fetch performance data',
+        data: {
+          stats: {
+            quizzes_taken: 0,
+            average_score: 0,
+            pass_rate: 0,
+            time_spent: 0
+          }
+        }
+      }
+    }
+  },
+
+  /**
+   * Get recent scores for the user
+   */
+  async getRecentScores() {
+    try {
+      const response = await api.get('/api/dashboard/user/recent-scores', {
+        params: { limit: 5 } // Get latest 5 scores
+      })
+      
+      return {
+        success: true,
+        data: response.data
+      }
+    } catch (error) {
+      console.error('Recent scores error:', error)
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to fetch recent scores',
+        data: []
       }
     }
   }
 }
 
-export default new DashboardService() 
+export default dashboardService 

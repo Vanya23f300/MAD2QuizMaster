@@ -6,7 +6,7 @@
         <div class="d-flex justify-content-between align-items-center">
           <div>
             <h1 class="text-light mb-2">{{ quizData.name }}</h1>
-            <p class="text-muted mb-0">
+            <p class="text-light mb-0">
               {{ quizData.chapter_name }} • {{ quizData.subject_name }}
             </p>
       </div>
@@ -22,7 +22,7 @@
       <!-- Loading State -->
       <div v-if="loading" class="text-center py-5">
         <div class="spinner-border text-primary mb-3"></div>
-        <p class="text-muted">{{ loadingMessage }}</p>
+        <p class="text-light">{{ loadingMessage }}</p>
       </div>
 
       <!-- Error State -->
@@ -45,7 +45,7 @@
             <span class="text-light">
               Question {{ currentQuestionIndex + 1 }} of {{ questions.length }}
             </span>
-            <span class="text-muted">
+            <span class="text-light">
               {{ Math.round(((currentQuestionIndex + 1) / questions.length) * 100) }}% Complete
             </span>
         </div>
@@ -156,7 +156,7 @@
             {{ quizResults.passed ? 'Congratulations!' : 'Quiz Completed' }}
           </h2>
           
-          <p class="text-muted mb-4">
+          <p class="text-light mb-4">
             {{ quizResults.passed ? 'You have successfully passed the quiz!' : 'Keep practicing to improve your score!' }}
           </p>
 
@@ -166,25 +166,25 @@
               <div class="col-md-3 mb-3">
                 <div class="score-metric">
                   <h3 class="text-primary">{{ Math.round(quizResults.percentage) }}%</h3>
-                  <p class="text-muted">Final Score</p>
+                  <p class="text-light">Final Score</p>
                 </div>
               </div>
               <div class="col-md-3 mb-3">
                 <div class="score-metric">
                   <h3 class="text-info">{{ quizResults.correct_answers }}</h3>
-                  <p class="text-muted">Correct Answers</p>
+                  <p class="text-light">Correct Answers</p>
             </div>
           </div>
               <div class="col-md-3 mb-3">
                 <div class="score-metric">
                   <h3 class="text-secondary">{{ quizResults.total_questions }}</h3>
-                  <p class="text-muted">Total Questions</p>
+                  <p class="text-light">Total Questions</p>
                 </div>
               </div>
               <div class="col-md-3 mb-3">
                 <div class="score-metric">
                   <h3 class="text-warning">{{ Math.round(quizResults.score.time_taken / 60) }}</h3>
-                  <p class="text-muted">Minutes Taken</p>
+                  <p class="text-light">Minutes Taken</p>
             </div>
               </div>
             </div>
@@ -224,7 +224,7 @@
           <div class="modal-body">
             <div class="submission-summary mb-3">
               <h6 class="text-light">Quiz Summary:</h6>
-              <ul class="list-unstyled text-muted">
+              <ul class="list-unstyled text-light">
                 <li><i class="bi bi-check-circle me-2"></i>Answered: {{ Object.keys(selectedAnswers).length }} questions</li>
                 <li><i class="bi bi-circle me-2"></i>Unanswered: {{ questions.length - Object.keys(selectedAnswers).length }} questions</li>
                 <li><i class="bi bi-clock me-2"></i>Time remaining: {{ formatTime(timeRemaining) }}</li>
@@ -261,7 +261,7 @@
 </template>
 
 <script>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Modal } from 'bootstrap'
 import quizService from '@/services/quizService'
@@ -285,15 +285,131 @@ export default {
     const timerInterval = ref(null)
     const quizSubmitted = ref(false)
     const quizResults = ref(null)
+    const lastTimestamp = ref(Date.now()) // Track timestamp for timer precision
 
     const currentQuestion = computed(() => {
       return questions.value[currentQuestionIndex.value]
     })
 
+    // Save quiz state to localStorage
+    const saveQuizState = () => {
+      const quizState = {
+        quizId,
+        quizData: quizData.value,
+        questions: questions.value,
+        currentQuestionIndex: currentQuestionIndex.value,
+        selectedAnswers: selectedAnswers.value,
+        startTime: startTime.value,
+        timeRemaining: timeRemaining.value,
+        lastTimestamp: Date.now(),
+        quizSubmitted: quizSubmitted.value,
+        quizResults: quizResults.value
+      }
+      localStorage.setItem(`quiz_state_${quizId}`, JSON.stringify(quizState))
+      console.log('Quiz state saved to localStorage')
+    }
+
+    // Clear stale quiz data from localStorage
+    const clearStaleQuizData = () => {
+      try {
+        const keysToRemove = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && key.startsWith('quiz_state_') && key !== `quiz_state_${quizId}`) {
+            keysToRemove.push(key)
+          }
+          if (key && key.startsWith('quiz_result_') && key !== `quiz_result_${quizId}`) {
+            keysToRemove.push(key)
+          }
+        }
+        
+        keysToRemove.forEach(key => {
+          localStorage.removeItem(key)
+          console.log('🗑️ Cleared stale quiz data:', key)
+        })
+      } catch (error) {
+        console.error('Failed to clear stale quiz data:', error)
+      }
+    }
+
+    // Restore quiz state from localStorage
+    const restoreQuizState = () => {
+      try {
+        const savedStateString = localStorage.getItem(`quiz_state_${quizId}`)
+        if (!savedStateString) {
+          console.log('💾 No saved state found for quiz:', quizId)
+          return false
+        }
+
+        const savedState = JSON.parse(savedStateString)
+        
+        // Verify it's the same quiz ID
+        if (savedState.quizId !== quizId) {
+          console.log('❌ Quiz ID mismatch. Expected:', quizId, 'Found:', savedState.quizId)
+          localStorage.removeItem(`quiz_state_${quizId}`)
+          return false
+        }
+        
+        // Verify the quiz data exists and has valid structure
+        if (!savedState.quizData || !savedState.quizData.id || savedState.quizData.id != quizId) {
+          console.log('❌ Invalid quiz data in saved state')
+          localStorage.removeItem(`quiz_state_${quizId}`)
+          return false
+        }
+        
+        // Additional validation for questions
+        if (!savedState.questions || !Array.isArray(savedState.questions) || savedState.questions.length === 0) {
+          console.log('❌ Invalid questions data in saved state')
+          localStorage.removeItem(`quiz_state_${quizId}`)
+          return false
+        }
+        
+        // Restore state
+        quizData.value = savedState.quizData
+        questions.value = savedState.questions
+        currentQuestionIndex.value = savedState.currentQuestionIndex || 0
+        selectedAnswers.value = savedState.selectedAnswers || {}
+        startTime.value = savedState.startTime
+        quizSubmitted.value = savedState.quizSubmitted || false
+        quizResults.value = savedState.quizResults
+        
+        // Calculate elapsed time since last save
+        const elapsedSeconds = Math.floor((Date.now() - savedState.lastTimestamp) / 1000)
+        timeRemaining.value = Math.max(0, savedState.timeRemaining - elapsedSeconds)
+        
+        console.log('✅ Quiz state restored from localStorage for quiz:', quizId)
+        return true
+      } catch (error) {
+        console.error('❌ Failed to restore quiz state:', error)
+        localStorage.removeItem(`quiz_state_${quizId}`)
+        return false
+      }
+    }
+
     const loadQuiz = async () => {
       try {
         loading.value = true
         loadingMessage.value = 'Loading quiz...'
+        
+        // Clear any stale localStorage data for other quizzes first
+        clearStaleQuizData()
+        
+        // Try to restore state first, but only for the current quiz
+        const stateRestored = restoreQuizState()
+        
+        if (stateRestored && quizData.value && quizData.value.id == quizId) {
+          console.log('✅ Restored valid quiz state for quiz:', quizId)
+          // If state was restored and quiz was already submitted, don't restart the timer
+          if (!quizSubmitted.value && timeRemaining.value > 0) {
+            startTimer()
+          }
+          loading.value = false
+          return
+        }
+        
+        // Clear any invalid state and start fresh
+        localStorage.removeItem(`quiz_state_${quizId}`)
+        console.log('🔄 Starting fresh quiz session for:', quizId)
         
         // Start the quiz and get questions
         const response = await quizService.startQuiz(quizId)
@@ -301,6 +417,9 @@ export default {
         quizData.value = response
         questions.value = response.questions
         startTime.value = response.start_time
+        
+        console.log('📝 Loaded quiz:', response.name, 'ID:', response.id)
+        console.log('📊 Questions loaded:', questions.value.length)
         
         // Set up timer
         if (response.time_duration) {
@@ -317,9 +436,27 @@ export default {
     }
 
     const startTimer = () => {
+      // Clear any existing interval first
+      if (timerInterval.value) {
+        clearInterval(timerInterval.value)
+      }
+
+      lastTimestamp.value = Date.now()
+      
       timerInterval.value = setInterval(() => {
         if (timeRemaining.value > 0) {
-          timeRemaining.value--
+          // Calculate elapsed time more precisely
+          const now = Date.now()
+          const elapsed = Math.floor((now - lastTimestamp.value) / 1000)
+          lastTimestamp.value = now
+          
+          // Update time remaining
+          timeRemaining.value = Math.max(0, timeRemaining.value - elapsed)
+          
+          // Save state periodically (every 10 seconds)
+          if (timeRemaining.value % 10 === 0) {
+            saveQuizState()
+          }
         } else {
           // Time's up, auto-submit
           autoSubmitQuiz()
@@ -334,23 +471,29 @@ export default {
     }
 
     const selectAnswer = (questionId, optionIndex) => {
+      // Convert from 0-based index to 1-based index for backend
       selectedAnswers.value[questionId] = optionIndex
+      // Save state whenever an answer is selected
+      saveQuizState()
     }
 
     const nextQuestion = () => {
       if (currentQuestionIndex.value < questions.value.length - 1) {
         currentQuestionIndex.value++
+        saveQuizState()
       }
     }
 
     const previousQuestion = () => {
       if (currentQuestionIndex.value > 0) {
         currentQuestionIndex.value--
+        saveQuizState()
       }
     }
 
     const goToQuestion = (index) => {
       currentQuestionIndex.value = index
+      saveQuizState()
     }
 
     const showSubmitConfirm = () => {
@@ -379,14 +522,130 @@ export default {
 
         const response = await quizService.submitQuiz(quizId, submitData)
         
+        // Log answers for verification
+        console.log('Submitted answers:', selectedAnswers.value)
+        console.log('Correct answers:', response.question_answers)
+        
         quizResults.value = response
         quizSubmitted.value = true
+        
+        // Save the final result to localStorage for the result page to access
+        saveQuizResultForResultPage(response)
+        
+        // Navigate to result page with attempt ID
+        if (response && response.score && response.score.id) {
+          // If we have an attempt ID, use it
+          router.push({
+            name: 'QuizResult',
+            params: { quizId },
+            query: { attempt: response.score.id }
+          })
+        } else {
+          // Otherwise just pass the quiz ID
+          router.push({
+            name: 'QuizResult',
+            params: { quizId }
+          })
+        }
+        
         loading.value = false
       } catch (err) {
         console.error('Failed to submit quiz:', err)
         error.value = err.response?.data?.message || 'Failed to submit quiz'
         loading.value = false
       }
+    }
+    
+    // Save quiz result for the result page to access
+    const saveQuizResultForResultPage = (responseData) => {
+      try {
+        // Calculate the correct counts based on the actual responses
+        let totalCorrect = responseData.correct_answers || 0;
+        let totalIncorrect = responseData.incorrect_answers || 0;
+        let totalUnanswered = responseData.unanswered || 0;
+        
+        // If we don't have these values, calculate them from the questions and user answers
+        if (totalCorrect === 0 && totalIncorrect === 0 && questions.value.length > 0) {
+          questions.value.forEach(question => {
+            const userAnswer = selectedAnswers.value[question.id];
+            if (userAnswer === undefined) {
+              totalUnanswered++;
+            } else if (userAnswer === question.correct_option) {
+              totalCorrect++;
+            } else {
+              totalIncorrect++;
+            }
+          });
+        }
+        
+        // Calculate the accurate percentage
+        let calculatedPercentage = 0;
+        if (questions.value.length > 0) {
+          calculatedPercentage = (totalCorrect / questions.value.length) * 100;
+        }
+        
+        // Format the quiz result data
+        const quizResult = {
+          quiz: {
+            id: quizId,
+            title: quizData.value.name,
+            totalPoints: questions.value.reduce((acc, q) => acc + (q.marks || 1), 0),
+            passingScore: 70,
+            questions: questions.value.map(q => ({
+              ...q,
+              // Add any calculated properties needed for the result page
+              type: q.question_type || 'multiple_choice',
+              content: q.question_statement,
+              correctAnswer: q.correct_option, // Keep the 1-based indexing from backend
+              options: q.options ? q.options.map(opt => ({ text: opt })) : []
+            }))
+          },
+          result: {
+            score: responseData.total_scored || 0,
+            percentage: responseData.percentage || calculatedPercentage,
+            correctAnswers: totalCorrect,
+            incorrectAnswers: totalIncorrect,
+            unanswered: totalUnanswered,
+            passed: responseData.passed || (calculatedPercentage >= 70),
+            grade: getGrade(responseData.percentage || calculatedPercentage),
+            gradeDescription: getGradeDescription(responseData.percentage || calculatedPercentage),
+            timeSpent: formatTimeForDisplay(responseData.time_taken || timeRemaining.value)
+          },
+          userAnswers: selectedAnswers.value,
+          timestamp: Date.now()
+        }
+        
+        // Save to localStorage
+        const resultKey = `quiz_result_${quizId}`
+        localStorage.setItem(resultKey, JSON.stringify(quizResult))
+        console.log('Quiz result saved for result page:', resultKey)
+      } catch (err) {
+        console.error('Error saving quiz result:', err)
+      }
+    }
+    
+    // Helper functions for the result data
+    const getGrade = (percentage) => {
+      if (percentage >= 90) return 'A'
+      if (percentage >= 80) return 'B'
+      if (percentage >= 70) return 'C'
+      if (percentage >= 60) return 'D'
+      return 'F'
+    }
+    
+    const getGradeDescription = (percentage) => {
+      if (percentage >= 90) return 'Excellent! Outstanding performance!'
+      if (percentage >= 80) return 'Good job! Above average performance!'
+      if (percentage >= 70) return 'Fair performance. Room for improvement.'
+      if (percentage >= 60) return 'Below average. Consider reviewing the material.'
+      return 'Poor performance. Please review and retake.'
+    }
+    
+    const formatTimeForDisplay = (seconds) => {
+      if (!seconds) return 'N/A'
+      const minutes = Math.floor(seconds / 60)
+      const secs = seconds % 60
+      return `${minutes}m ${secs}s`
     }
 
     const autoSubmitQuiz = () => {
@@ -406,16 +665,56 @@ export default {
       router.push('/user/scores')
     }
 
+    // Watch for changes to key quiz properties to save state
+    watch([currentQuestionIndex, selectedAnswers], () => {
+      if (!loading.value && !quizSubmitted.value) {
+        saveQuizState()
+      }
+    }, { deep: true })
+
+    // Setup visibility change handling to pause/resume timer
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Page is hidden, save state
+        if (timerInterval.value) {
+          clearInterval(timerInterval.value)
+          timerInterval.value = null
+          saveQuizState()
+        }
+      } else {
+        // Page is visible again, restore timer
+        if (!timerInterval.value && !quizSubmitted.value && timeRemaining.value > 0) {
+          // Recalculate elapsed time
+          const savedState = JSON.parse(localStorage.getItem(`quiz_state_${quizId}`))
+          if (savedState) {
+            const elapsedSeconds = Math.floor((Date.now() - savedState.lastTimestamp) / 1000)
+            timeRemaining.value = Math.max(0, savedState.timeRemaining - elapsedSeconds)
+          }
+          
+          startTimer()
+        }
+      }
+    }
+
     // Cleanup on component unmount
     onUnmounted(() => {
       if (timerInterval.value) {
         clearInterval(timerInterval.value)
       }
+      
+      // Save state on unmount if quiz is not submitted
+      if (!quizSubmitted.value) {
+        saveQuizState()
+      }
+      
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     })
 
     // Prevent page refresh during quiz
     const handleBeforeUnload = (event) => {
       if (!quizSubmitted.value && questions.value.length > 0) {
+        saveQuizState() // Save state before unload
         event.preventDefault()
         event.returnValue = ''
       }
@@ -423,11 +722,10 @@ export default {
 
     onMounted(() => {
       loadQuiz()
+      
+      // Add event listeners
       window.addEventListener('beforeunload', handleBeforeUnload)
-    })
-
-    onUnmounted(() => {
-      window.removeEventListener('beforeunload', handleBeforeUnload)
+      document.addEventListener('visibilitychange', handleVisibilityChange)
     })
 
     return {

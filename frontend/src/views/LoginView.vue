@@ -4,7 +4,7 @@
       <div class="login-card glass-card">
         <div class="login-header text-center mb-4">
           <h2 class="text-light mb-2">Quiz Master</h2>
-          <p class="text-muted">Login to your account</p>
+          <p class="text-light">Login to your account</p>
         </div>
         
         <form @submit.prevent="handleLogin" class="login-form">
@@ -66,7 +66,7 @@
         
         <!-- Register Link -->
         <div class="text-center mt-4">
-          <span class="text-muted">Don't have an account?</span>
+          <span class="text-light">Don't have an account?</span>
           <router-link to="/register" class="text-primary ms-2">Create Account</router-link>
         </div>
       </div>
@@ -303,7 +303,7 @@ export default {
   text-shadow: 0 0 8px rgba(100, 181, 246, 0.3) !important;
 }
 
-.text-muted {
+.text-light {
   color: rgba(255, 255, 255, 0.65) !important;
   font-size: 0.875rem !important;
 }

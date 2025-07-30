@@ -5,10 +5,19 @@
       <div class="page-header glass mb-4">
         <div class="d-flex justify-content-between align-items-center">
           <div>
-            <h1 class="text-light mb-2">
-              <i class="bi bi-layers me-1"></i>
-              Chapters Management
-            </h1>
+            <div class="d-flex align-items-center mb-2">
+              <router-link 
+                to="/admin/dashboard" 
+                class="btn btn-outline-light me-3"
+                title="Back to Dashboard"
+              >
+                <i class="bi bi-arrow-left"></i>
+              </router-link>
+              <h1 class="text-light mb-0">
+                <i class="bi bi-layers me-1"></i>
+                Chapters Management
+              </h1>
+            </div>
             <p class="text-light mb-0">
               Create, edit, and manage chapters for your quiz platform
             </p>
@@ -45,7 +54,7 @@
           <!-- Loading State -->
           <div v-if="loading" class="text-center py-5">
             <div class="spinner-border text-primary mb-3"></div>
-            <p class="text-muted">Loading chapters...</p>
+            <p class="text-light">Loading chapters...</p>
           </div>
 
           <!-- Error State -->
@@ -56,9 +65,9 @@
 
           <!-- Empty State -->
           <div v-else-if="chapters.length === 0" class="empty-state text-center py-5">
-            <i class="bi bi-layers display-1 text-muted mb-3"></i>
+            <i class="bi bi-layers display-1 text-light mb-3"></i>
             <h4 class="text-light">No Chapters Found</h4>
-            <p class="text-muted">
+            <p class="text-light">
               Create your first chapter by selecting a subject and clicking "Create Chapter"
             </p>
           </div>
@@ -98,7 +107,7 @@
                     </span>
                   </td>
                   <td>
-                    <small class="text-muted">
+                    <small class="text-light">
                       {{ formatDate(chapter.created_at) }}
                     </small>
                   </td>

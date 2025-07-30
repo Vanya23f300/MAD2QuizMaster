@@ -21,7 +21,7 @@ class ChapterService {
         throw new Error('No authentication token found')
       }
 
-      const response = await api.post('/chapters', chapterData, {
+      const response = await api.post('/api/chapters', chapterData, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -79,7 +79,7 @@ class ChapterService {
         throw new Error('No authentication token found')
       }
 
-      const response = await api.get(`/subjects/${subjectId}/chapters`, {
+      const response = await api.get(`/api/subjects/${subjectId}/chapters`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

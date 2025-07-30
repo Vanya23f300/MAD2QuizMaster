@@ -79,6 +79,30 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
+    path: '/user/select-quiz',
+    name: 'SelectQuiz',
+    component: () => import('../views/user/SelectQuizView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/user/subject/:subjectId/chapters',
+    name: 'SubjectChapters',
+    component: () => import('../views/user/ChaptersView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/user/chapter/:chapterId/quizzes',
+    name: 'ChapterQuizzes',
+    component: () => import('../views/user/QuizzesView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/user/quizzes',
+    name: 'UnattemptedQuizzes',
+    component: () => import('../views/user/UnattemptedQuizzesView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
     path: '/user/quiz/:quizId',
     name: 'QuizTaking',
     component: () => import('../views/user/QuizTakingView.vue'),

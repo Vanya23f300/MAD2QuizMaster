@@ -8,7 +8,7 @@ class QuizService {
   async getAvailableQuizzes() {
     try {
       console.log('🚀 Fetching Available Quizzes')
-      const response = await api.get('/quizzes/available')
+      const response = await api.get('/api/quizzes/available')
       
       console.log('✅ Available Quizzes Response:', response.data)
       
@@ -35,7 +35,7 @@ class QuizService {
   async getUserRecentScores() {
     try {
       console.log('🚀 Fetching User Recent Scores')
-      const response = await api.get('/scores/recent')
+      const response = await api.get('/api/scores/recent')
       
       console.log('✅ Recent Scores Response:', response.data)
       
@@ -63,7 +63,7 @@ class QuizService {
   async startQuizAttempt(quizId) {
     try {
       console.log(`🚀 Starting Quiz Attempt for Quiz ID: ${quizId}`)
-      const response = await api.post(`/quizzes/${quizId}/start`)
+      const response = await api.post(`/api/quizzes/${quizId}/start`)
       
       console.log('✅ Quiz Start Response:', response.data)
       
@@ -92,7 +92,7 @@ class QuizService {
   async submitQuizAnswers(quizId, answers) {
     try {
       console.log(`🚀 Submitting Quiz Answers for Quiz ID: ${quizId}`)
-      const response = await api.post(`/quizzes/${quizId}/submit`, { answers })
+      const response = await api.post(`/api/quizzes/${quizId}/submit`, { answers })
       
       console.log('✅ Quiz Submit Response:', response.data)
       

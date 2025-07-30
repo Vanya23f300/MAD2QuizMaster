@@ -3,7 +3,7 @@ import apiClient from './api';
 const subjectService = {
   async getSubjects() {
     try {
-      const response = await apiClient.get('/subjects');
+      const response = await apiClient.get('/api/subjects');
       return response.data;
     } catch (error) {
       console.error('Error fetching subjects:', error.response || error);
@@ -13,7 +13,7 @@ const subjectService = {
 
   async createSubject(subjectData) {
     try {
-      const response = await apiClient.post('/subjects', subjectData);
+      const response = await apiClient.post('/api/subjects', subjectData);
       return response.data;
     } catch (error) {
       console.error('Error creating subject:', error.response || error);
@@ -24,7 +24,7 @@ const subjectService = {
   // New method to fetch available subjects for students
   async getAvailableSubjects() {
     try {
-      const response = await apiClient.get('/subjects/available');
+      const response = await apiClient.get('/api/subjects/available');
       return response.data;
     } catch (error) {
       console.error('Error fetching available subjects:', error.response || error);

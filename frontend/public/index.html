@@ -1,11 +1,43 @@
 <!DOCTYPE html>
-<html lang="">
+<html lang="en">
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
     <link rel="icon" href="<%= BASE_URL %>favicon.ico">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+      /* Ensure modals appear on top */
+      .modal {
+        z-index: 9999 !important;
+      }
+      .modal-backdrop {
+        z-index: 9998 !important;
+      }
+    </style>
     <title><%= htmlWebpackPlugin.options.title %></title>
+    
+    <!-- Prevent unwanted WebSocket connections -->
+    <script>
+      // Override WebSocket to prevent unwanted connections
+      if (window.WebSocket && window.location.hostname === 'localhost') {
+        const originalWebSocket = window.WebSocket;
+        window.WebSocket = function(url, protocols) {
+          if (url.includes('192.168.29.82:8080/ws')) {
+            console.log('Blocked WebSocket connection to:', url);
+            return {
+              addEventListener: function() {},
+              removeEventListener: function() {},
+              send: function() {},
+              close: function() {}
+            };
+          }
+          return new originalWebSocket(url, protocols);
+        };
+        window.WebSocket.prototype = originalWebSocket.prototype;
+      }
+    </script>
   </head>
   <body>
     <noscript>

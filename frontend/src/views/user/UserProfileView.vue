@@ -60,7 +60,7 @@
                   </div>
                   <div>
                     <h4 class="text-light mb-1">{{ profile.full_name }}</h4>
-                    <p class="text-muted mb-0">{{ profile.username }}</p>
+                    <p class="text-light mb-0">{{ profile.username }}</p>
                   </div>
                 </div>
 
@@ -68,7 +68,7 @@
                 <form @submit.prevent="saveProfile">
                   <div class="row g-3">
                     <div class="col-md-6">
-                      <FormLabel for="full_name" required>Full Name</FormLabel>
+                      <FormLabel for="full_name" required>Username</FormLabel>
                       <BaseInput
                         id="full_name"
                         v-model="profile.full_name"
@@ -92,39 +92,6 @@
                       <FormError :error="errors.username" />
                     </div>
 
-                    <div class="col-md-6">
-                      <FormLabel for="dob" required>Date of Birth</FormLabel>
-                      <BaseInput
-                        id="dob"
-                        type="date"
-                        v-model="profile.dob"
-                        :disabled="!editMode"
-                        :class="{ 'is-invalid': errors.dob }"
-                        required
-                      />
-                      <FormError :error="errors.dob" />
-                    </div>
-
-                    <div class="col-md-6">
-                      <FormLabel for="qualification" required>Qualification</FormLabel>
-                      <select
-                        id="qualification"
-                        v-model="profile.qualification"
-                        :disabled="!editMode"
-                        class="form-select bg-transparent border-secondary text-light"
-                        :class="{ 'is-invalid': errors.qualification }"
-                        required
-                      >
-                        <option value="">Select Qualification</option>
-                        <option value="High School">High School</option>
-                        <option value="Bachelor's">Bachelor's Degree</option>
-                        <option value="Master's">Master's Degree</option>
-                        <option value="PhD">PhD</option>
-                        <option value="Other">Other</option>
-                      </select>
-                      <FormError :error="errors.qualification" />
-                    </div>
-
                     <div class="col-12" v-if="editMode">
                       <FormLabel for="current_password">Current Password (required to save changes)</FormLabel>
                       <BaseInput
@@ -145,11 +112,11 @@
                   <h6 class="text-light mb-3">Account Information</h6>
                   <div class="row g-3">
                     <div class="col-md-6">
-                      <small class="text-muted">Member Since</small>
+                      <small class="text-light">Member Since</small>
                       <p class="text-light mb-0">{{ formatDate(profile.created_at) }}</p>
                     </div>
                     <div class="col-md-6">
-                      <small class="text-muted">Last Updated</small>
+                      <small class="text-light">Last Updated</small>
                       <p class="text-light mb-0">{{ formatDate(profile.updated_at) }}</p>
                     </div>
                   </div>
@@ -221,51 +188,6 @@
                 </div>
               </div>
             </div>
-
-            <!-- Stats Sidebar -->
-            <div class="col-md-4">
-              <div class="card glass p-4 mb-4">
-                <h6 class="text-light mb-3">Quiz Statistics</h6>
-                <div class="stats-grid">
-                  <div class="stat-item text-center p-3 mb-3 rounded">
-                    <div class="stat-value text-primary">{{ stats.totalAttempts }}</div>
-                    <div class="stat-label text-muted">Total Attempts</div>
-                  </div>
-                  <div class="stat-item text-center p-3 mb-3 rounded">
-                    <div class="stat-value text-success">{{ stats.averageScore }}%</div>
-                    <div class="stat-label text-muted">Average Score</div>
-                  </div>
-                  <div class="stat-item text-center p-3 mb-3 rounded">
-                    <div class="stat-value text-warning">{{ stats.bestScore }}%</div>
-                    <div class="stat-label text-muted">Best Score</div>
-                  </div>
-                  <div class="stat-item text-center p-3 rounded">
-                    <div class="stat-value text-info">{{ stats.subjectsAttempted }}</div>
-                    <div class="stat-label text-muted">Subjects Attempted</div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Recent Activity -->
-              <div class="card glass p-4">
-                <h6 class="text-light mb-3">Recent Activity</h6>
-                <div class="activity-list">
-                  <div 
-                    v-for="activity in recentActivity" 
-                    :key="activity.id"
-                    class="activity-item d-flex align-items-center mb-3"
-                  >
-                    <div class="activity-icon me-3">
-                      <i class="bi bi-file-text text-primary"></i>
-                    </div>
-                    <div class="flex-grow-1">
-                      <div class="text-light small">{{ activity.description }}</div>
-                      <div class="text-muted x-small">{{ formatDate(activity.date) }}</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -278,6 +200,7 @@ import BaseSidebar from '../../components/BaseSidebar.vue'
 import BaseInput from '../../components/BaseInput.vue'
 import FormLabel from '../../components/FormLabel.vue'
 import FormError from '../../components/FormError.vue'
+import UserService from '@/services/user-service'
 
 export default {
   name: 'UserProfileView',
@@ -294,13 +217,11 @@ export default {
       passwordLoading: false,
       showChangePassword: false,
       profile: {
-        id: 1,
-        username: 'user@example.com',
-        full_name: 'John Doe',
-        qualification: "Bachelor's",
-        dob: '1995-06-15',
-        created_at: '2024-01-15',
-        updated_at: '2024-01-20',
+        id: null,
+        username: '',
+        full_name: '',
+        created_at: '',
+        updated_at: '',
         current_password: ''
       },
       originalProfile: {},
@@ -310,99 +231,90 @@ export default {
         confirm_password: ''
       },
       errors: {},
-      passwordErrors: {},
-      stats: {
-        totalAttempts: 12,
-        averageScore: 85,
-        bestScore: 95,
-        subjectsAttempted: 3
-      },
-      recentActivity: [
-        {
-          id: 1,
-          description: 'Completed Vue.js Basics Quiz - 85%',
-          date: '2024-01-20'
-        },
-        {
-          id: 2,
-          description: 'Started JavaScript Advanced Chapter',
-          date: '2024-01-19'
-        },
-        {
-          id: 3,
-          description: 'Updated profile information',
-          date: '2024-01-18'
-        }
-      ]
+      passwordErrors: {}
     }
   },
   async mounted() {
-    await this.loadProfile()
+    console.log('UserProfileView mounted - loading profile');
+    await this.loadProfile();
+    console.log('Profile loaded in mounted:', this.profile);
   },
   methods: {
     async loadProfile() {
       try {
-        // Mock data for now - replace with actual API call
-        // const response = await userService.getProfile()
-        // this.profile = response.data
-        this.originalProfile = { ...this.profile }
+        const result = await UserService.getProfile()
+        if (result.success) {
+          console.log("Profile data loaded:", result.data);
+          this.profile = result.data
+          this.originalProfile = { ...this.profile }
+        } else {
+          console.error("Failed to load profile data:", result.message);
+          this.$toast?.error(result.message)
+        }
       } catch (error) {
         console.error('Error loading profile:', error)
+        this.$toast?.error('Failed to load profile')
       }
     },
+
     async saveProfile() {
       if (!this.validateProfile()) return
 
       this.loading = true
       try {
-        // Mock API call - replace with actual implementation
-        // await userService.updateProfile(this.profile)
+        const result = await UserService.updateProfile({
+          full_name: this.profile.full_name,
+          current_password: this.profile.current_password
+        })
         
-        console.log('Profile updated:', this.profile)
-        this.editMode = false
-        this.originalProfile = { ...this.profile }
-        this.errors = {}
-        this.profile.current_password = ''
-        
-        // Show success message
-        this.$toast?.success('Profile updated successfully!')
+        if (result.success) {
+          this.editMode = false
+          this.errors = {}
+          this.profile.current_password = ''
+          this.$toast?.success('Profile updated successfully!')
+          await this.loadProfile() // Reload profile to get updated data
+          this.$router.push('/user/dashboard') // Redirect to dashboard after successful update
+        } else {
+          if (result.error?.errors) {
+            this.errors = result.error.errors
+          } else {
+            this.$toast?.error(result.message)
+          }
+        }
       } catch (error) {
         console.error('Error updating profile:', error)
-        if (error.response?.data?.errors) {
-          this.errors = error.response.data.errors
-        } else {
-          this.$toast?.error('Failed to update profile. Please try again.')
-        }
+        this.$toast?.error('Failed to update profile')
       } finally {
         this.loading = false
       }
     },
+
     async changePassword() {
       if (!this.validatePassword()) return
 
       this.passwordLoading = true
       try {
-        // Mock API call - replace with actual implementation
-        // await userService.changePassword(this.passwordForm)
+        const result = await UserService.changePassword(this.passwordForm)
         
-        console.log('Password changed successfully')
-        this.passwordForm = {
-          old_password: '',
-          new_password: '',
-          confirm_password: ''
+        if (result.success) {
+          this.passwordForm = {
+            old_password: '',
+            new_password: '',
+            confirm_password: ''
+          }
+          this.showChangePassword = false
+          this.passwordErrors = {}
+          this.$toast?.success('Password changed successfully!')
+        } else {
+          if (result.error?.errors) {
+            this.passwordErrors = result.error.errors
+          } else {
+            this.$toast?.error(result.message)
+          }
         }
-        this.showChangePassword = false
-        this.passwordErrors = {}
-        
-        // Show success message
-        this.$toast?.success('Password changed successfully!')
       } catch (error) {
         console.error('Error changing password:', error)
-        if (error.response?.data?.errors) {
-          this.passwordErrors = error.response.data.errors
-        } else {
-          this.$toast?.error('Failed to change password. Please try again.')
-        }
+        this.$toast?.error('Failed to change password')
       } finally {
         this.passwordLoading = false
       }
@@ -411,7 +323,7 @@ export default {
       this.errors = {}
       
       if (!this.profile.full_name?.trim()) {
-        this.errors.full_name = 'Full name is required'
+        this.errors.full_name = 'Username is required'
       }
       
       if (!this.profile.username?.trim()) {
@@ -420,15 +332,7 @@ export default {
         this.errors.username = 'Please enter a valid email address'
       }
       
-      if (!this.profile.dob) {
-        this.errors.dob = 'Date of birth is required'
-      }
-      
-      if (!this.profile.qualification) {
-        this.errors.qualification = 'Qualification is required'
-      }
-      
-      if (!this.profile.current_password) {
+      if (!this.profile.current_password && this.editMode) {
         this.errors.current_password = 'Current password is required to save changes'
       }
       
@@ -461,7 +365,7 @@ export default {
       this.errors = {}
     },
     getUserInitials(name) {
-      return name.split(' ').map(n => n[0]).join('').toUpperCase()
+      return name ? name.split(' ').map(n => n[0]).join('').toUpperCase() : ''
     },
     formatDate(dateString) {
       if (!dateString) return 'N/A'

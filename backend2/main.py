@@ -10,296 +10,145 @@ from dotenv import load_dotenv
 import os
 from datetime import datetime, date, timedelta
 import logging
+from celery import Celery
+from celery.schedules import crontab
+from flask_mail import Mail
 
-# Load environment variables from .env file
-load_dotenv(override=True)  # Force override of any existing variables
+# Load environment variables from .env file first
+load_dotenv(override=True)
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG)
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global app variable
+# Global variables
 app = None
+mail = None
+
+# Celery Configuration
+celery = Celery(
+    __name__,
+    backend=os.environ.get('RESULT_BACKEND', 'redis://localhost:6379/0'),
+    broker=os.environ.get('BROKER_URL', 'redis://localhost:6379/0'),
+    include=['application.celery_tasks'],
+    imports = ('application.celery_tasks'),
+)
 
 def create_app():
-    global app
+    global app, mail
     app = Flask(__name__)
-    
-    print("starting local development")
-    
-    # Load configuration
     app.config.from_object(LocalDevelopmentConfig)
-    app.config["UPLOAD_FOLDER"] = "static/images"
     
-    # Enhanced CORS Configuration
-    CORS(app, resources={
-        r"/*": {
-            "origins": "*",
-            "allow_headers": [
-                "Content-Type",
-                "Authorization",
-                "Access-Control-Allow-Headers",
-                "Access-Control-Allow-Origin",
-                "Access-Control-Allow-Methods"
-            ],
-            "expose_headers": [
-                "Content-Type",
-                "Authorization"
-            ],
-            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-            "supports_credentials": True,
-            "max_age": 86400  # Cache preflight requests for 24 hours
-        }
-    })
-
-    # Handle OPTIONS requests globally
-    @app.route('/api/<path:path>', methods=['OPTIONS'])
-    def handle_options(path):
-        return '', 200
-
+    # Ensure email configuration is properly loaded from environment
+    app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+    app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+    app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', '1', 'on']
+    app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL', 'false').lower() in ['true', '1', 'on']
+    app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+    app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+    app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@quizmaster.com')
+    
+    # Celery configuration in Flask config - using new-style keys
+    app.config['broker_url'] = os.environ.get('BROKER_URL', 'redis://localhost:6379/0')
+    app.config['result_backend'] = os.environ.get('RESULT_BACKEND', 'redis://localhost:6379/0')
+    
+    # Log email configuration for debugging
+    logger.info("Flask app email configuration:")
+    logger.info(f"MAIL_SERVER: {app.config['MAIL_SERVER']}")
+    logger.info(f"MAIL_PORT: {app.config['MAIL_PORT']}")
+    logger.info(f"MAIL_USE_TLS: {app.config['MAIL_USE_TLS']}")
+    logger.info(f"MAIL_USERNAME: {app.config['MAIL_USERNAME']}")
+    logger.info(f"MAIL_DEFAULT_SENDER: {app.config['MAIL_DEFAULT_SENDER']}")
+    
     # Initialize extensions
-    db.init_app(app)
+    CORS(app)
+    bcrypt = Bcrypt(app)
     jwt = JWTManager(app)
     
-    # JWT Error Handlers for better debugging
-    @jwt.expired_token_loader
-    def expired_token_callback(jwt_header, jwt_payload):
-        logger.warning("JWT token has expired")
-        return jsonify({
-            'message': 'Token has expired',
-            'error': 'TOKEN_EXPIRED'
-        }), 401
-
-    @jwt.invalid_token_loader
-    def invalid_token_callback(error):
-        logger.warning(f"Invalid JWT token: {error}")
-        return jsonify({
-            'message': 'Invalid token',
-            'error': 'INVALID_TOKEN'
-        }), 422
-
-    @jwt.unauthorized_loader
-    def missing_token_callback(error):
-        logger.warning(f"Missing JWT token: {error}")
-        return jsonify({
-            'message': 'Authorization token is required',
-            'error': 'TOKEN_MISSING'
-        }), 401
-
-    @jwt.needs_fresh_token_loader
-    def token_not_fresh_callback(jwt_header, jwt_payload):
-        logger.warning("Fresh token required")
-        return jsonify({
-            'message': 'Fresh token required',
-            'error': 'FRESH_TOKEN_REQUIRED'
-        }), 401
-
-    @jwt.revoked_token_loader
-    def revoked_token_callback(jwt_header, jwt_payload):
-        logger.warning("Token has been revoked")
-        return jsonify({
-            'message': 'Token has been revoked',
-            'error': 'TOKEN_REVOKED'
-        }), 401
-
+    # Database initialization
+    db.init_app(app)
+    
     # Initialize Redis (will gracefully handle if Redis is not running)
     init_redis(app)
     
-    # Initialize Flask-Mail
-    init_mail(app)
+    # Initialize Flask-Mail (make it globally accessible)
+    mail = Mail(app)
+    
+    celery.conf.beat_schedule = {
+        'daily-quiz-reminders': {
+            'task': 'application.celery_tasks.send_daily_reminders',
+            'schedule': 10,  # Every 10 seconds for testing
+            'schedule': crontab(hour=9, minute=0),  # 9 AM daily (original)
+        },
+        'monthly-quiz-reports': {
+            'task': 'application.celery_tasks.send_monthly_reports',
+            # 'schedule': 180,  # Every 3 minutes for testing
+            'schedule': crontab(day_of_month=1, hour=0, minute=0),  # 1st of month at midnight (original)
+        }
+    }
     
     # Create application context
     with app.app_context():
         # Import models here to ensure they're registered with db
         from application.models import Users, Subjects, Chapters, Quizzes, Questions, Scores
         
-        # Ensure database is created
-        print("Creating database tables...")
+        # Create all database tables
         db.create_all()
-        print("Database tables created.")
         
-        # Check if admin user exists, if not create one
-        try:
-            existing_admin = Users.query.filter_by(email="admin@email.com").first()
-            
-            if not existing_admin:
-                from flask_bcrypt import Bcrypt
-                b = Bcrypt()
-                password = b.generate_password_hash("admin123").decode('utf-8')
-                
-                admin_user = Users(
-                    email="admin@email.com",
-                    username="admin",
-                    password=password,
-                    dob=date(1990, 1, 1),
-                    qualification="System Administrator",
-                    is_admin=True,
-                    last_login=datetime.utcnow(),
-                    is_active=True,
-                    registration_date=datetime.utcnow()
-                )
-                
-                db.session.add(admin_user)
-                db.session.commit()
-                logger.info("Admin user created successfully")
-            else:
-                logger.info("Admin user already exists")
-        except Exception as e:
-            logger.error(f"Error checking/creating admin user: {str(e)}")
+        # Create default admin user if it doesn't exist
+        admin_user = Users.query.filter_by(email='admin@email.com').first()
+        if not admin_user:
+            admin_user = Users(
+                username='admin',
+                email='admin@email.com',
+                password=bcrypt.generate_password_hash('admin').decode('utf-8'),
+                role='admin',
+                is_active=True
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+            logger.info("Default admin user created: admin@email.com / admin")
+    
+    # Push app context as per documentation pattern
+    app.app_context().push()
     
     return app
 
 # Create the app
 app = create_app()
 
-# Import and register routes manually
+# Register routes after app creation
 from application.apis.users import register_user_routes
-from application.apis.subjects import register_subject_routes
+from application.apis.subjects import register_subject_routes  
 from application.apis.chapters import register_chapter_routes
-from application.apis.quizzes import create_quiz_routes
 from application.apis.questions import create_question_routes
-from application.apis.exports import register_export_routes
-from application.apis.search import create_search_routes
+from application.apis.quizzes import create_quiz_routes
 from application.apis.analytics import create_analytics_routes
+from application.apis.search import create_search_routes
+from application.apis.exports import register_export_routes
 
-
-# Register all routes
 register_user_routes(app)
 register_subject_routes(app)
 register_chapter_routes(app)
-create_quiz_routes(app)
 create_question_routes(app)
-register_export_routes(app)
-create_search_routes(app)
+create_quiz_routes(app)
 create_analytics_routes(app)
+create_search_routes(app)
+register_export_routes(app)
 
+@app.route('/api/test', methods=['GET'])
+def test_route():
+    return jsonify({
+        'message': 'QuizMaster Backend is running!',
+        'timestamp': datetime.utcnow().isoformat()
+    })
 
-# Dashboard statistics route
-@app.route('/api/dashboard/stats', methods=['GET'])
-@jwt_required()
-def fetch_dashboard_stats():
-    """
-    Retrieve dashboard statistics
-    ---
-    tags:
-      - Dashboard
-    security:
-      - bearerAuth: []
-    responses:
-      200:
-        description: Dashboard statistics
-      403:
-        description: Admin access required
-    """
-    try:
-        # Get current user's identity
-        current_user_email = get_jwt_identity()  # Now this is just the email string
-        
-        # Import models here to avoid circular imports
-        from application.models import Users, Subjects, Chapters, Quizzes, Scores
-        
-        # Verify admin access
-        current_user = Users.query.filter_by(email=current_user_email).first()
-        if not current_user or not current_user.is_admin:
-            return jsonify({
-                'message': 'Access denied. Admin privileges required.',
-                'error': 'UNAUTHORIZED'
-            }), 403
-        
-        # Gather dashboard statistics
-        stats = {
-            'users': {
-                'total': Users.query.count(),
-                'active': Users.query.filter_by(is_active=True).count(),
-                'admin': Users.query.filter_by(is_admin=True).count()
-            },
-            'subjects': {
-                'total': Subjects.query.count(),
-                'active': Subjects.query.filter_by(is_active=True).count()
-            },
-            'chapters': {
-                'total': Chapters.query.count()
-            },
-            'quizzes': {
-                'total': Quizzes.query.count(),
-                'active': Quizzes.query.filter_by(is_active=True).count()
-            },
-            'scores': {
-                'total_attempts': Scores.query.count(),
-                'avg_score': db.session.query(db.func.avg(Scores.total_scored)).scalar() or 0
-            }
-        }
-        
-        logger.info(f"Dashboard stats retrieved for admin: {current_user.email}")
-        
-        return jsonify(stats), 200
+if __name__ == '__main__':
+    # CRITICAL FIX: Update celery configuration with app config HERE
+    # This matches the pattern used by the working implementation
+    celery.conf.update(app.config)
+    logger.info(f"Celery configured with database: {app.config.get('SQLALCHEMY_DATABASE_URI')}")
+    logger.info(f"Celery broker: {app.config['broker_url']}")
+    logger.info(f"Celery backend: {app.config['result_backend']}")
     
-    except Exception as e:
-        logger.error(f"Dashboard stats error: {str(e)}")
-        return jsonify({
-            'message': 'Error retrieving dashboard stats',
-            'error': str(e)
-        }), 500
-
-# Recent activities route
-@app.route('/api/dashboard/activities', methods=['GET'])
-@jwt_required()
-def fetch_recent_activities():
-    """
-    Retrieve recent platform activities
-    ---
-    tags:
-      - Dashboard
-    security:
-      - bearerAuth: []
-    responses:
-      200:
-        description: Recent platform activities
-      403:
-        description: Admin access required
-    """
-    try:
-        # Get current user's identity
-        current_user_email = get_jwt_identity()  # Now this is just the email string
-        
-        # Import models here to avoid circular imports
-        from application.models import Users, Subjects, Chapters, Quizzes, Scores
-        
-        # Verify admin access
-        current_user = Users.query.filter_by(email=current_user_email).first()
-        if not current_user or not current_user.is_admin:
-            return jsonify({
-                'message': 'Access denied. Admin privileges required.',
-                'error': 'UNAUTHORIZED'
-            }), 403
-        
-        # Simulate recent activities (you'll want to replace this with actual tracking)
-        activities = [
-            {
-                'description': 'New user registered',
-                'timestamp': datetime.utcnow() - timedelta(hours=2)
-            },
-            {
-                'description': 'Subject "Python Programming" created',
-                'timestamp': datetime.utcnow() - timedelta(hours=5)
-            },
-            {
-                'description': 'Quiz "Basic Python" published',
-                'timestamp': datetime.utcnow() - timedelta(days=1)
-            }
-        ]
-        
-        logger.info(f"Recent activities retrieved for admin: {current_user.email}")
-        
-        return jsonify(activities), 200
-    
-    except Exception as e:
-        logger.error(f"Recent activities error: {str(e)}")
-        return jsonify({
-            'message': 'Error retrieving recent activities',
-            'error': str(e)
-        }), 500
-
-if __name__ == "__main__":
-    print('starting local development')
-    app.run(host='0.0.0.0', port=8000, debug=True)
+    app.run(debug=True, host='0.0.0.0', port=8000)

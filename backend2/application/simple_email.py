@@ -12,6 +12,10 @@ def init_mail(app):
     """Initialize Flask-Mail with app"""
     global mail
     
+    # Ensure environment variables are loaded
+    from dotenv import load_dotenv
+    load_dotenv(override=True)
+    
     # Log mail configuration for debugging
     logger.info("Initializing Mail with the following configuration:")
     logger.info(f"MAIL_SERVER: {app.config.get('MAIL_SERVER')}")
@@ -32,11 +36,14 @@ def send_simple_email(to_email, subject, body):
             logger.error("Mail not initialized")
             return False
             
-        sender = os.environ.get('MAIL_DEFAULT_SENDER') or current_app.config.get('MAIL_DEFAULT_SENDER')
-        username = os.environ.get('MAIL_USERNAME') or current_app.config.get('MAIL_USERNAME')
+        # Get configuration values
+        sender = current_app.config.get('MAIL_DEFAULT_SENDER')
+        username = current_app.config.get('MAIL_USERNAME')
         
-        logger.info(f"Sending email using: {sender} / {username}")
+        logger.info(f"Sending email using sender: {sender}")
+        logger.info(f"SMTP username: {username}")
         
+        # Create message
         msg = Message(
             subject=subject,
             recipients=[to_email],
@@ -44,6 +51,7 @@ def send_simple_email(to_email, subject, body):
             sender=sender
         )
         
+        # Send email
         mail.send(msg)
         logger.info(f"Email sent successfully to {to_email}")
         return True

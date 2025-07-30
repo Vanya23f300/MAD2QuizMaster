@@ -23,7 +23,7 @@ class AuthService {
   async signup(userData) {
     try {
       console.log('🚀 Sending signup request to backend:', userData)
-      const response = await api.post('/signup', userData)
+      const response = await api.post('/api/signup', userData)
       console.log('✅ Signup response received:', response.data)
       
       // Store auth data in localStorage on successful signup
@@ -80,7 +80,7 @@ class AuthService {
   async login(credentials) {
     try {
       console.log('🚀 Sending login request to backend:', { email: credentials.email })
-      const response = await api.post('/login', credentials)
+      const response = await api.post('/api/login', credentials)
       console.log('✅ Login response received:', response.data)
       
       // Store auth data in localStorage on successful login
@@ -166,12 +166,26 @@ class AuthService {
    */
   getCurrentUser() {
     if (this.isAuthenticated()) {
-      return {
-        username: localStorage.getItem('user'),
-        isAdmin: this.isAdmin()
+      try {
+        const userString = localStorage.getItem('user');
+        if (userString) {
+          // Try to parse user as JSON
+          if (userString.startsWith('{')) {
+            return JSON.parse(userString);
+          } else {
+            // If not JSON, return as string
+            return {
+              username: userString,
+              isAdmin: this.isAdmin()
+            };
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        return null;
       }
     }
-    return null
+    return null;
   }
 }
 

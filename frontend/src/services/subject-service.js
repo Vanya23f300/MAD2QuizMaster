@@ -17,7 +17,7 @@ class SubjectService {
         throw new Error('Subject name is required')
       }
 
-      const response = await api.post('/subjects', {
+      const response = await api.post('/api/subjects', {
         name: subjectData.name,
         description: subjectData.description || ''
       })
@@ -67,19 +67,82 @@ class SubjectService {
    */
   async getAllSubjects() {
     try {
-      const response = await api.get('/subjects')
+      console.log('🔍 Fetching all subjects...')
+      const response = await api.get('/api/subjects')
+      console.log('✅ Subjects retrieved:', response.data)
       
       return {
         success: true,
-        data: response.data,
+        data: response.data || [],
         message: 'Subjects retrieved successfully'
       }
     } catch (error) {
       console.error('❌ Fetching Subjects Error:', error)
       
+      // Return empty array instead of error to avoid UI breaking
       return {
         success: false,
+        data: [], // Return empty array as fallback
         message: error.response?.data?.message || 'Failed to retrieve subjects',
+        error: error.response?.data
+      }
+    }
+  }
+
+  /**
+   * Update an existing subject
+   * @param {number} subjectId - ID of the subject to update
+   * @param {Object} subjectData - Subject update data
+   * @returns {Promise} Subject update result
+   */
+  async updateSubject(subjectId, subjectData) {
+    try {
+      console.log('🔄 Updating Subject:', { id: subjectId, data: subjectData })
+      
+      const response = await api.put(`/api/subjects/${subjectId}`, {
+        name: subjectData.name,
+        description: subjectData.description || '',
+        is_active: subjectData.is_active
+      })
+
+      return {
+        success: true,
+        data: response.data,
+        message: 'Subject updated successfully!'
+      }
+    } catch (error) {
+      console.error('❌ Subject Update Error:', error)
+      
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to update subject',
+        error: error.response?.data
+      }
+    }
+  }
+
+  /**
+   * Delete a subject
+   * @param {number} subjectId - ID of the subject to delete
+   * @returns {Promise} Subject deletion result
+   */
+  async deleteSubject(subjectId) {
+    try {
+      console.log('🗑️ Deleting Subject:', subjectId)
+      
+      // eslint-disable-next-line no-unused-vars
+      const response = await api.delete(`/api/subjects/${subjectId}`)
+
+      return {
+        success: true,
+        message: 'Subject deleted successfully!'
+      }
+    } catch (error) {
+      console.error('❌ Subject Deletion Error:', error)
+      
+      return {
+        success: false,
+        message: error.response?.data?.message || 'Failed to delete subject',
         error: error.response?.data
       }
     }

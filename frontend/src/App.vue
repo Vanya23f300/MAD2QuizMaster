@@ -3,12 +3,66 @@
     <div class="main-content">
       <router-view />
     </div>
+    <div class="notification-container">
+      <NotificationCenter v-if="showNotifications" />
+    </div>
+    <button 
+      class="notification-toggle glass-button"
+      @click="toggleNotifications"
+    >
+      <i class="bi bi-bell"></i>
+      <span v-if="unreadCount > 0" class="notification-badge">{{ unreadCount }}</span>
+    </button>
   </div>
 </template>
 
 <script>
+import NotificationCenter from './components/NotificationCenter.vue'
+import notificationService from './services/notification-service'
+import { ref, onMounted, computed } from 'vue'
+
 export default {
-  name: 'App'
+  name: 'App',
+  components: {
+    NotificationCenter
+  },
+  setup() {
+    const showNotifications = ref(false)
+    const notifications = ref([])
+    
+    const toggleNotifications = () => {
+      showNotifications.value = !showNotifications.value
+    }
+    
+    const addNotification = (notification) => {
+      notifications.value.unshift(notification)
+    }
+    
+    const unreadCount = computed(() => {
+      return notifications.value.filter(n => !n.read).length
+    })
+    
+    onMounted(() => {
+      notificationService.on('notification', addNotification)
+      
+      // Subscribe to mark-as-read and mark-all-read events
+      notificationService.on('mark-notification-read', (id) => {
+        const notification = notifications.value.find(n => n.id === id)
+        if (notification) notification.read = true
+      })
+      
+      notificationService.on('mark-all-notifications-read', () => {
+        notifications.value.forEach(n => n.read = true)
+      })
+    })
+    
+    return {
+      showNotifications,
+      toggleNotifications,
+      unreadCount,
+      notifications
+    }
+  }
 }
 </script>
 
@@ -281,6 +335,63 @@ html, body {
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+/* Notification Container */
+.notification-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1060;
+  transition: all 0.3s ease;
+  transform: translateX(420px);
+  opacity: 0;
+}
+
+.notification-container:has(> .notification-center[style*="display: block"]) {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+/* Notification Toggle Button */
+.notification-toggle {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 1050;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+}
+
+.notification-toggle:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: translateY(-2px);
+}
+
+.notification-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  background: #dc3545;
+  color: white;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 0.7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .container-fluid {
@@ -290,6 +401,13 @@ html, body {
   
   .main-content {
     padding-top: 70px;
+  }
+  
+  .notification-container {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    width: auto;
   }
 }
 
