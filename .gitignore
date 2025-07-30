@@ -24,3 +24,16 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+
+
+# Log files
+*.log
+celery_worker.log
+celerybeat.log
+
+# PID files
+*.pid
+celery_worker.pid
+celerybeat.pid
+
+celerybeat-schedule.db
