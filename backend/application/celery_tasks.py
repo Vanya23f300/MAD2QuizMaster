@@ -128,26 +128,19 @@ def generate_user_quiz_export(self, user_id, filename):
 @celery.task
 def send_daily_reminders():
     """
-    Send daily reminders to users who haven't logged in recently
+    Send daily reminders to all active users
     """
     try:
         # Create a safe database session
         session = get_safe_session()
         
         try:
-            # Define what "inactive" means - users who haven't logged in for more than 2 days
-            cutoff_date = datetime.utcnow() - timedelta(days=2)
-            
-            # Find inactive users
-            inactive_users = session.query(Users).filter(
-                Users.is_active == True,
-                or_(
-                    Users.last_login == None,
-                    Users.last_login < cutoff_date
-                )
+            # Find all active users
+            active_users = session.query(Users).filter(
+                Users.is_active == True
             ).all()
             
-            logger.info(f"Found {len(inactive_users)} inactive users to send reminders to")
+            logger.info(f"Found {len(active_users)} active users to send reminders to")
             
             # Get available quizzes (active quizzes created in the last 7 days)
             recent_quizzes = session.query(
@@ -170,9 +163,9 @@ def send_daily_reminders():
                 for quiz, chapter, subject in recent_quizzes
             ]
             
-            # Send emails to each inactive user
+            # Send emails to each active user
             success_count = 0
-            for user in inactive_users:
+            for user in active_users:
                 try:
                     # Prepare email content
                     subject = "Daily Quiz Reminder - QuizMaster"
@@ -286,7 +279,7 @@ QuizMaster Team"""
             
             return {
                 'status': 'completed',
-                'message': f'Daily reminders sent to {success_count} of {len(inactive_users)} users',
+                'message': f'Daily reminders sent to {success_count} of {len(active_users)} users',
                 'timestamp': datetime.utcnow().isoformat()
             }
         finally:

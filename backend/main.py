@@ -77,7 +77,7 @@ def create_app():
     celery.conf.beat_schedule = {
         'daily-quiz-reminders': {
             'task': 'application.celery_tasks.send_daily_reminders',
-            'schedule': 10,  # Every 10 seconds for testing
+            # 'schedule': 10,  # Every 10 seconds for testing
             'schedule': crontab(hour=9, minute=0),  # 9 AM daily (original)
         },
         'monthly-quiz-reports': {
