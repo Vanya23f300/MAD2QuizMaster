@@ -77,13 +77,13 @@ def create_app():
     celery.conf.beat_schedule = {
         'daily-quiz-reminders': {
             'task': 'application.celery_tasks.send_daily_reminders',
-            # 'schedule': 10,  # Every 10 seconds for testing
-            'schedule': crontab(hour=9, minute=0),  # 9 AM daily (original)
+            'schedule': 10,  # Every 10 seconds for testing
+            # 'schedule': crontab(hour=9, minute=0),  # 9 AM daily (original)
         },
         'monthly-quiz-reports': {
             'task': 'application.celery_tasks.send_monthly_reports',
-            # 'schedule': 180,  # Every 3 minutes for testing
-            'schedule': crontab(day_of_month=1, hour=0, minute=0),  # 1st of month at midnight (original)
+            'schedule': 10,  # Every 3 minutes for testing
+            # 'schedule': crontab(day_of_month=1, hour=0, minute=0),  # 1st of month at midnight (original)
         }
     }
     

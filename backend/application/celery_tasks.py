@@ -160,7 +160,8 @@ def send_daily_reminders():
         try:
             # Find all active users
             active_users = session.query(Users).filter(
-                Users.is_active == True
+                Users.is_active == True,
+                Users.is_admin == False
             ).all()
             
             logger.info(f"Found {len(active_users)} active users to send reminders to")
